@@ -1,0 +1,6 @@
+import <io>
+
+func main(){
+    Type["Hello World!"], \n
+    return 0;
+}

@@ -1,0 +1,97 @@
+#pragma once            // include this file only once, even if several files #include it
+
+#include <string>
+
+// Every kind of token the lexer can produce.
+// 'enum class' keeps the names inside TokenKind:: so they can't clash with other code.
+enum class TokenKind {
+    // keywords: words with a fixed meaning in the language
+    KwImport,           // import   (your INCLUDE_OR_IMPORT)
+    KwFunc,             // func
+    KwReturn,           // return
+    KwType,             // Type     (the output statement)
+    KwIf,               // if
+    KwElse,             // else
+    KwElseIf,           // else if  (your ELSE_IF_STATEMENT; see the note below)
+    KwFor,              // for
+    KwWhile,            // while
+
+    // type names and literals: my guess at what these mean, tell me if I'm wrong
+    KwInteger,          // your Integer
+    KwBoolean,          // your Boolean
+    KwCharacter,        // your Character
+    KwDCNumber,         // your DC_number
+
+    // things whose text varies from program to program
+    Identifier,         // names like main or name (your Name)
+    Number,             // 0, 42
+    String,             // "Hello World!"  (your StringLiteral)
+
+    // brackets
+    LParen, RParen,     // ( )   your open/close_circle_bracket
+    LBrace, RBrace,     // { }   your open/close_curly_bracket
+    LBracket, RBracket, // [ ]   your open/close_square_bracket
+
+    // punctuation
+    Less, Greater,      // < >   (import <io> now, comparisons later)
+    Comma,              // ,
+    Semicolon,          // ;
+    Hash,               // #     (your HASHTAG)
+    NewlineMark,        // a \n written outside a string (your endln)
+
+    // operators
+    Plus, Minus, Star, Slash,
+
+    EndOfFile,          // marks that the input has run out
+    Invalid             // a character the language doesn't recognize
+};
+
+// One token: what kind it is, the exact text it came from, and where it was found.
+// The position matters later: error messages need to say "line 3, column 7".
+struct Token {
+    TokenKind kind;
+    std::string text;   // e.g. "Hello," for a String, "name" for an Identifier
+    int line;           // 1-based line number in the source file
+    int column;         // 1-based column number
+};
+
+inline const char* kind_name(TokenKind k)
+{
+    switch (k){
+        case TokenKind::KwImport: return "KwImport";
+        case TokenKind::KwFunc: return "KwFunc";
+        case TokenKind::KwReturn: return "KwReturn";
+        case TokenKind::KwType:      return "KwType";
+        case TokenKind::KwIf:        return "KwIf";
+        case TokenKind::KwElse:      return "KwElse";
+        case TokenKind::KwElseIf:    return "KwElseIf";
+        case TokenKind::KwFor:       return "KwFor";
+        case TokenKind::KwWhile:     return "KwWhile";
+        case TokenKind::KwInteger:   return "KwInteger";
+        case TokenKind::KwBoolean:   return "KwBoolean";
+        case TokenKind::KwCharacter: return "KwCharacter";
+        case TokenKind::KwDCNumber:  return "KwDCNumber";
+        case TokenKind::Identifier:  return "Identifier";
+        case TokenKind::Number:      return "Number";
+        case TokenKind::String:      return "String";
+        case TokenKind::LParen:      return "LParen";
+        case TokenKind::RParen:      return "RParen";
+        case TokenKind::LBrace:      return "LBrace";
+        case TokenKind::RBrace:      return "RBrace";
+        case TokenKind::LBracket:    return "LBracket";
+        case TokenKind::RBracket:    return "RBracket";
+        case TokenKind::Less:        return "Less";
+        case TokenKind::Greater:     return "Greater";
+        case TokenKind::Comma:       return "Comma";
+        case TokenKind::Semicolon:   return "Semicolon";
+        case TokenKind::Hash:        return "Hash";
+        case TokenKind::NewlineMark: return "NewlineMark";
+        case TokenKind::Plus:        return "Plus";
+        case TokenKind::Minus:       return "Minus";
+        case TokenKind::Star:        return "Star";
+        case TokenKind::Slash:       return "Slash";
+        case TokenKind::EndOfFile:   return "EndOfFile";
+        case TokenKind::Invalid:     return "Invalid";
+    }
+    return "Unknown Token";
+}
