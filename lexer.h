@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include "token.h"
 
 // The lexer reads source text and hands back one token each time next_token() is called
@@ -68,6 +69,18 @@ private:
 
         while (is_letter(peek()) || is_digit(peek())){
             text += advance();
+        }
+
+        static const std::unordered_map<std::string, TokenKind> keywords = {
+            {"import", TokenKind::KwImport},
+            {"func", TokenKind::KwFunc},
+            {"return", TokenKind::KwReturn},
+            {"Type", TokenKind::KwType},
+        };
+
+        auto it = keywords.find(text);
+        if (it != keywords.end()){
+            return Token{it->second, text, start_line, start_col};
         }
 
         return Token{TokenKind::Identifier, text, start_line, start_col};
