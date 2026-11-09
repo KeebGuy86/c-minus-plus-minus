@@ -40,11 +40,26 @@ public:
         case '-': return Token{TokenKind::Minus,     "-", start_line, start_col};
         case '*': return Token{TokenKind::Star,      "*", start_line, start_col};
         case '/': return Token{TokenKind::Slash,     "/", start_line, start_col};
+        case '\\':
+            // A backslash outside a string. In C++, '\\' means one backslash character.
+            // Only \n means something here: the "add a newline" marker after Type[...].
+            if (peek() == 'n') {
+                advance();      // take the 'n' that follows, so both characters become one token
+                return Token{TokenKind::NewlineMark, "\\n", start_line, start_col};
+            }
+            // A backslash followed by anything else isn't part of the language.
+            return Token{TokenKind::Invalid, "\\", start_line, start_col};
         default:
             // A letter means a word is starting, so read the whole word.
             if (is_letter(c)) {
                 return read_word(c, start_line, start_col);
             }
+
+            // A digit means a number is starting, so read the whole number.
+            if (is_digit(c)) {
+                return read_number(c, start_line, start_col);
+            }
+
             // Anything else is still Invalid for now.
             return Token{TokenKind::Invalid, std::string(1, c), start_line, start_col};
         }
@@ -84,6 +99,17 @@ private:
         }
 
         return Token{TokenKind::Identifier, text, start_line, start_col};
+    }
+
+    // // Reads a number(only whole numbers), 'first' is the digit we already took with advance()
+    Token read_number(char first, int start_line, int start_col){
+        std::string text(1, first);
+
+        while (is_digit(peek())) {
+            text += advance();
+        }
+
+        return Token{TokenKind::Number, text, start_line, start_col};
     }
 
     bool at_end() const{
