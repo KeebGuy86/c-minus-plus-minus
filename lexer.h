@@ -40,8 +40,11 @@ public:
         case '*': return Token{TokenKind::Star,      "*", start_line, start_col};
         case '/': return Token{TokenKind::Slash,     "/", start_line, start_col};
         default:
-            // Anything we don't recognize yet (letters, digits, quotes, backslashes)
-            // is reported as Invalid. Later steps teach the lexer to handle them.
+            // A letter means a word is starting, so read the whole word.
+            if (is_letter(c)) {
+                return read_word(c, start_line, start_col);
+            }
+            // Anything else is still Invalid for now.
             return Token{TokenKind::Invalid, std::string(1, c), start_line, start_col};
         }
     }
@@ -50,6 +53,25 @@ private:
     size_t pos = 0;
     int line = 1;
     int col = 1;
+
+    static bool is_letter(char c){
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+    }
+
+    static bool is_digit(char c){
+        return c >= '0' && c <= '9';
+    }
+
+    //Reads the rest of the word, given that 'first' is a letter already taken in advance()
+    Token read_word(char first, int start_line, int start_col){
+        std::string text(1, first);
+
+        while (is_letter(peek()) || is_digit(peek())){
+            text += advance();
+        }
+
+        return Token{TokenKind::Identifier, text, start_line, start_col};
+    }
 
     bool at_end() const{
         return pos >= src.size();
