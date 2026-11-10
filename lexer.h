@@ -49,6 +49,9 @@ public:
             }
             // A backslash followed by anything else isn't part of the language.
             return Token{TokenKind::Invalid, "\\", start_line, start_col};
+        case '"':
+            //a double qoute means that a string is starting
+            return read_string(start_line, start_col);
         default:
             // A letter means a word is starting, so read the whole word.
             if (is_letter(c)) {
@@ -110,6 +113,24 @@ private:
         }
 
         return Token{TokenKind::Number, text, start_line, start_col};
+    }
+
+    //Reads a String of text, opening qoute has already been taken by advance()
+    Token read_string(int start_line, int start_col){
+        std::string value;
+
+        //keep taking in characters until the closing qoute
+        while (!at_end() && peek() != '\n' && peek() != '"'){
+            value += advance();
+        }
+
+        //if the string was never closed, report it as Invalid.
+        if (at_end() || peek() != '"'){
+            return Token{TokenKind::Invalid, value, start_line, start_col};
+        }
+
+        advance();
+        return Token{TokenKind::String, value, start_line, start_col};
     }
 
     bool at_end() const{
