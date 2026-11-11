@@ -93,7 +93,21 @@ private:
             {"import", TokenKind::KwImport},
             {"func", TokenKind::KwFunc},
             {"return", TokenKind::KwReturn},
-            {"Type", TokenKind::KwType},
+            {"Type", TokenKind::KwType},    //output
+            {"Read", TokenKind::KwRead},    //input
+            // control flow
+            {"if",     TokenKind::KwIf},
+            {"else",   TokenKind::KwElse},
+            {"while",  TokenKind::KwWhile},
+            {"for",    TokenKind::KwFor},
+            // types
+            {"Integer", TokenKind::KwInteger},
+            {"Boolean", TokenKind::KwBoolean},
+            {"String",  TokenKind::KwString},
+            {"Char",    TokenKind::KwChar},
+            // Boolean values
+            {"true",   TokenKind::KwTrue},
+            {"false",  TokenKind::KwFalse},
         };
 
         auto it = keywords.find(text);
@@ -130,7 +144,7 @@ private:
         }
 
         advance();
-        return Token{TokenKind::String, value, start_line, start_col};
+        return Token{TokenKind::StringLiteral, value, start_line, start_col};
     }
 
     bool at_end() const{

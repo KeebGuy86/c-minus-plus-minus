@@ -12,20 +12,22 @@ enum class TokenKind {
     KwType,             // Type     (the output statement)
     KwIf,               // if
     KwElse,             // else
-    KwElseIf,           // else if  (your ELSE_IF_STATEMENT; see the note below)
     KwFor,              // for
     KwWhile,            // while
 
     // type names and literals: my guess at what these mean, tell me if I'm wrong
     KwInteger,          // your Integer
     KwBoolean,          // your Boolean
-    KwCharacter,        // your Character
-    KwDCNumber,         // your DC_number
+    KwChar,        // your Char
+    KwString,           // String  (the type; the String below is a string literal)
+    KwRead,             // Read    (input statement)
+    KwTrue,             // true
+    KwFalse,            // false
 
     // things whose text varies from program to program
     Identifier,         // names like main or name (your Name)
     Number,             // 0, 42
-    String,             // "Hello World!"  (your StringLiteral)
+    StringLiteral,             // "Hello World!"  (your StringLiteral)
 
     // brackets
     LParen, RParen,     // ( )   your open/close_circle_bracket
@@ -64,16 +66,18 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::KwType:      return "KwType";
         case TokenKind::KwIf:        return "KwIf";
         case TokenKind::KwElse:      return "KwElse";
-        case TokenKind::KwElseIf:    return "KwElseIf";
         case TokenKind::KwFor:       return "KwFor";
         case TokenKind::KwWhile:     return "KwWhile";
         case TokenKind::KwInteger:   return "KwInteger";
         case TokenKind::KwBoolean:   return "KwBoolean";
-        case TokenKind::KwCharacter: return "KwCharacter";
-        case TokenKind::KwDCNumber:  return "KwDCNumber";
+        case TokenKind::KwChar: return "KwChar";
         case TokenKind::Identifier:  return "Identifier";
         case TokenKind::Number:      return "Number";
-        case TokenKind::String:      return "String";
+        case TokenKind::StringLiteral:      return "String";
+        case TokenKind::KwString:    return "KwString";
+        case TokenKind::KwRead:      return "KwRead";
+        case TokenKind::KwTrue:      return "KwTrue";
+        case TokenKind::KwFalse:     return "KwFalse";
         case TokenKind::LParen:      return "LParen";
         case TokenKind::RParen:      return "RParen";
         case TokenKind::LBrace:      return "LBrace";
