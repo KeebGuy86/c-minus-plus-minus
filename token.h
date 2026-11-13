@@ -44,6 +44,17 @@ enum class TokenKind {
     // operators
     Plus, Minus, Star, Slash,
 
+    Percent,            // %
+    Assign,             // =
+    EqualEqual,         // ==
+    Bang,               // !
+    BangEqual,          // !=
+    LessEqual,          // <=
+    GreaterEqual,       // >=
+    AmpAmp,             // &&
+    PipePipe,           // ||
+    Arrow,              // ->
+
     EndOfFile,          // marks that the input has run out
     Invalid             // a character the language doesn't recognize
 };
@@ -96,6 +107,16 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::Slash:       return "Slash";
         case TokenKind::EndOfFile:   return "EndOfFile";
         case TokenKind::Invalid:     return "Invalid";
+        case TokenKind::Percent:      return "Percent";
+        case TokenKind::Assign:       return "Assign";
+        case TokenKind::EqualEqual:   return "EqualEqual";
+        case TokenKind::Bang:         return "Bang";
+        case TokenKind::BangEqual:    return "BangEqual";
+        case TokenKind::LessEqual:    return "LessEqual";
+        case TokenKind::GreaterEqual: return "GreaterEqual";
+        case TokenKind::AmpAmp:       return "AmpAmp";
+        case TokenKind::PipePipe:     return "PipePipe";
+        case TokenKind::Arrow:        return "Arrow";
     }
     return "Unknown Token";
 }

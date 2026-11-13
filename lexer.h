@@ -31,13 +31,10 @@ public:
         case '}': return Token{TokenKind::RBrace,    "}", start_line, start_col};
         case '[': return Token{TokenKind::LBracket,  "[", start_line, start_col};
         case ']': return Token{TokenKind::RBracket,  "]", start_line, start_col};
-        case '<': return Token{TokenKind::Less,      "<", start_line, start_col};
-        case '>': return Token{TokenKind::Greater,   ">", start_line, start_col};
         case ',': return Token{TokenKind::Comma,     ",", start_line, start_col};
         case ';': return Token{TokenKind::Semicolon, ";", start_line, start_col};
         case '#': return Token{TokenKind::Hash,      "#", start_line, start_col};
         case '+': return Token{TokenKind::Plus,      "+", start_line, start_col};
-        case '-': return Token{TokenKind::Minus,     "-", start_line, start_col};
         case '*': return Token{TokenKind::Star,      "*", start_line, start_col};
         case '/': return Token{TokenKind::Slash,     "/", start_line, start_col};
         case '\\':
@@ -52,6 +49,39 @@ public:
         case '"':
             //a double qoute means that a string is starting
             return read_string(start_line, start_col);
+        case '<':
+            // "<=" is one token; a lone "<" stays Less (also used by import <io>)
+            if (match('=')) return Token{TokenKind::LessEqual, "<=", start_line, start_col};
+            return Token{TokenKind::Less, "<", start_line, start_col};
+
+        case '>':
+            if (match('=')) return Token{TokenKind::GreaterEqual, ">=", start_line, start_col};
+            return Token{TokenKind::Greater, ">", start_line, start_col};
+
+        case '-':
+            // "->" is the arrow in function headers; a lone "-" is subtraction
+            if (match('>')) return Token{TokenKind::Arrow, "->", start_line, start_col};
+            return Token{TokenKind::Minus, "-", start_line, start_col};
+
+        case '=':
+            // "==" compares two values; a lone "=" assigns
+            if (match('=')) return Token{TokenKind::EqualEqual, "==", start_line, start_col};
+            return Token{TokenKind::Assign, "=", start_line, start_col};
+
+        case '!':
+            if (match('=')) return Token{TokenKind::BangEqual, "!=", start_line, start_col};
+            return Token{TokenKind::Bang, "!", start_line, start_col};
+
+        case '&':
+            // Only "&&" exists in the language; a lone "&" isn't valid yet
+            if (match('&')) return Token{TokenKind::AmpAmp, "&&", start_line, start_col};
+            return Token{TokenKind::Invalid, "&", start_line, start_col};
+
+        case '|':
+            if (match('|')) return Token{TokenKind::PipePipe, "||", start_line, start_col};
+            return Token{TokenKind::Invalid, "|", start_line, start_col};
+
+        case '%': return Token{TokenKind::Percent, "%", start_line, start_col};
         default:
             // A letter means a word is starting, so read the whole word.
             if (is_letter(c)) {
@@ -155,6 +185,14 @@ private:
     // at the end so callers never read past the string
     char peek() const{
         return at_end() ? '\0' : src[pos];
+    }
+
+    bool match(char expected){
+        if (at_end() || peek() != expected){
+            return false;
+        }
+        advance();
+        return true;
     }
 
     char advance(){
