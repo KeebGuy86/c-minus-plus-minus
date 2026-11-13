@@ -165,7 +165,29 @@ private:
 
         //keep taking in characters until the closing qoute
         while (!at_end() && peek() != '\n' && peek() != '"'){
-            value += advance();
+            char c = advance();
+
+            if (c == '\\') {
+                // A backslash starts an escape: the NEXT character says which one.
+                // If the line or file ends right after the backslash, stop here;
+                if (at_end() || peek() == '\n') {
+                    break;
+                }
+                char e = advance();     // the character after the backslash
+                switch (e) {
+                case 'n':  value += '\n'; break;    // \n becomes a real newline
+                case 't':  value += '\t'; break;    // \t becomes a real tab
+                case '\\': value += '\\'; break;    // \\ becomes one backslash
+                case '"':  value += '"';  break;    // \" becomes a quote inside the string
+                default:                            // anything else: keep it as written
+                    value += '\\';
+                    value += e;
+                    break;
+                }
+            }
+            else {
+                value += c;     // an ordinary character goes straight in
+            }
         }
 
         //if the string was never closed, report it as Invalid.
