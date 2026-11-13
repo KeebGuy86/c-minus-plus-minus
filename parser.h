@@ -77,17 +77,17 @@ private:
     }
 
     NodePtr parseImport(){
-        expect(TokenKind::Less, "'<' after import");
-        const Token& name = expect(TokenKind::Identifier, "a module name");
-        expect(TokenKind::Greater, "'>' after the module name");
+        expect(TokenKind::Less, " '<' after import");
+        const Token& name = expect(TokenKind::Identifier, " a module name");
+        expect(TokenKind::Greater, " '>' after the module name");
         return std::make_unique<ImportDecl>(name.text);
     }
 
     NodePtr parseFunction(){
-        const Token& name = expect(TokenKind::Identifier, "a function name");
-        expect(TokenKind::LParen, "'(' after a function name");
-        expect(TokenKind::RParen, "')'");
-        expect(TokenKind::LBrace, "'{' to the start the function body");
+        const Token& name = expect(TokenKind::Identifier, " a function name");
+        expect(TokenKind::LParen, " '(' after a function name");
+        expect(TokenKind::RParen, " ')'");
+        expect(TokenKind::LBrace, " '{' to the start the function body");
 
         auto fn = std::make_unique<FunctionDecl>(name.text);
 
@@ -95,7 +95,7 @@ private:
         while (!check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)){
                 fn->body.push_back(parseStatement());
         }
-        expect(TokenKind::RBrace, "'}' after the function body");
+        expect(TokenKind::RBrace, " '}' after the function body");
         return fn;
     }
 
@@ -108,18 +108,18 @@ private:
 
     //Type["Hello World!"], \n              the ", \n" part is optional
     NodePtr parseTypeStmt(){
-        expect(TokenKind::LBracket, "'[' after 'Type'");
+        expect(TokenKind::LBracket, " '[' after 'Type'");
         auto stmt = std::make_unique<TypeStmt>();
 
         //the items inside [] are expressions, until the closing bracket
         while (!check(TokenKind::RBracket) && !check(TokenKind::EndOfFile)){
             stmt->items.push_back(parseExpression());
         }
-        expect(TokenKind::RBracket, "']' to end the 'Type' Statement");
+        expect(TokenKind::RBracket, " ']' to end the 'Type' Statement");
 
         //", \n" after the bracket means, print a newline after the Type[]
         if (match(TokenKind::Comma)){
-            expect(TokenKind::NewlineMark, "'\\n' after the comma");
+            expect(TokenKind::NewlineMark, " '\\n' after the comma");
             stmt->newline = true;
         }
         match(TokenKind::Semicolon);    // a ';' is allowed here but not required
