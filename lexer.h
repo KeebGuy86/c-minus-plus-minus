@@ -37,6 +37,8 @@ public:
         case '+': return Token{TokenKind::Plus,      "+", start_line, start_col};
         case '*': return Token{TokenKind::Star,      "*", start_line, start_col};
         case '/': return Token{TokenKind::Slash,     "/", start_line, start_col};
+        case '?': return Token{TokenKind::Question, "?", start_line, start_col};
+        case ':': return Token{TokenKind::Colon,    ":", start_line, start_col};
         case '\\':
             // A backslash outside a string. In C++, '\\' means one backslash character.
             // Only \n means something here: the "add a newline" marker after Type[...].

@@ -55,6 +55,10 @@ enum class TokenKind {
     PipePipe,           // ||
     Arrow,              // ->
 
+    //conditional tokens
+    Question,           // ?   (ternary: condition ? a : b)
+    Colon,              // :   (ternary: the divider between the two results)
+
     EndOfFile,          // marks that the input has run out
     Invalid             // a character the language doesn't recognize
 };
@@ -117,6 +121,8 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::AmpAmp:       return "AmpAmp";
         case TokenKind::PipePipe:     return "PipePipe";
         case TokenKind::Arrow:        return "Arrow";
+        case TokenKind::Question:     return "Question";
+        case TokenKind::Colon:        return "Colon";
     }
     return "Unknown Token";
 }
