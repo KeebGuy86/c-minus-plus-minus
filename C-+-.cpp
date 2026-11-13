@@ -1,27 +1,15 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <vector>
 #include "token.h"
 #include "lexer.h"
+#include "parser.h"
 #include "ast.h"
 
 using namespace std;
 
 int main(int argc, char* argv[]) {
-
-    // TEMPORARY: build the Hello World tree by hand to test ast.h
-    Program prog;
-    prog.items.push_back(std::make_unique<ImportDecl>("io"));
-
-    auto fn = std::make_unique<FunctionDecl>("main");
-    auto out = std::make_unique<TypeStmt>();
-    out->items.push_back(std::make_unique<StringLit>("Hello World!"));
-    out->newline = true;
-    fn->body.push_back(std::move(out));
-    fn->body.push_back(std::make_unique<ReturnStmt>(std::make_unique<NumberLit>("0")));
-    prog.items.push_back(std::move(fn));
-
-    prog.print(0);
 
     if (argc < 2) {
         cout << "Usage: " << argv[0] << " <inputfile>" << endl;
@@ -45,15 +33,25 @@ int main(int argc, char* argv[]) {
         file.close();
 
 
-        // Run the lexer over the program and print every token it produces
+        // Stage 1: the lexer turns the text into a list of tokens.
         Lexer lexer(source);
+        vector<Token> tokens;
         while (true) {
             Token t = lexer.nextToken();
-            cout << t.line << ":" << t.column << "  "
-                 << kind_name(t.kind) << "  '" << t.text << "'\n";
+            tokens.push_back(t);
             if (t.kind == TokenKind::EndOfFile) {
-                break;      // no more tokens, stop
+                break;      // the list always ends with EndOfFile
             }
+        }
+
+        // Stage 2: the parser turns the tokens into a tree.
+        // If the program has a syntax error, the parser throws, and we print it.
+        try {
+            Parser parser(tokens);
+            auto program = parser.parseProgram();
+            program->print(0);
+        } catch (const exception& e) {
+            cout << "Syntax error at " << e.what() << "\n";
         }
     }
 

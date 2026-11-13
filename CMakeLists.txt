@@ -10,4 +10,6 @@ set(CMAKE_CXX_STANDARD 17)
 # Build a program called "cminus" from our source file.
 # The quotes around the file name are there because it contains + and - characters.
 add_executable(cminus "C-+-.cpp"
-        lexer.h)
+        lexer.h
+        ast.h
+        parser.h)
