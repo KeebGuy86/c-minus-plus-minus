@@ -1,0 +1,104 @@
+#pragma once
+
+#include <iostream>
+#include <memory>       // std::unique_ptr
+#include <string>
+#include <vector>
+
+// Base class for every node in the tree.
+// 'virtual' means each node type supplies its own version of the function.
+struct Node {
+    // A virtual destructor makes sure deleting a node through a base-class
+    // pointer cleans up the real (derived) object too.
+    virtual ~Node() = default;
+
+    // Each node knows how to print itself. 'indent' is how deep it is in the tree.
+    // "= 0" means "pure virtual": this class can't be used directly, only derived from.
+    virtual void print(int indent) const = 0;
+};
+
+// A node owns its children through unique_ptr: one owner per child, and the child is
+// freed automatically when its owner is destroyed. This is the same "scope-based
+// cleanup" model you chose for the language, with no garbage collector involved.
+using NodePtr = std::unique_ptr<Node>;
+
+// Prints two spaces per level of depth. Used by the print() functions.
+inline void pad(int indent) {
+    std::cout << std::string(indent * 2, ' ');
+}
+
+// ---------- Expressions: things that have a value ----------
+
+struct StringLit : Node {
+    std::string value;
+    explicit StringLit(std::string v) : value(std::move(v)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "String \"" << value << "\"\n";
+    }
+};
+
+struct NumberLit : Node {
+    std::string text;
+    explicit NumberLit(std::string t) : text(std::move(t)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Number " << text << "\n";
+    }
+};
+
+struct NameExpr : Node {
+    std::string name;
+    explicit NameExpr(std::string n) : name(std::move(n)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Name " << name << "\n";
+    }
+};
+
+// ---------- Statements: things that do something ----------
+
+// Type[ ... ], \n   ->  the items to print, and whether a newline follows
+struct TypeStmt : Node {
+    std::vector<NodePtr> items;     // what goes inside the [ ]
+    bool newline = false;           // true if ", \n" was written after the ]
+    void print(int indent) const override {
+        pad(indent); std::cout << "Type" << (newline ? " (newline)" : "") << "\n";
+        for (const auto& item : items) item->print(indent + 1);
+    }
+};
+
+struct ReturnStmt : Node {
+    NodePtr value;                  // the expression being returned
+    explicit ReturnStmt(NodePtr v) : value(std::move(v)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Return\n";
+        value->print(indent + 1);
+    }
+};
+
+// ---------- Top-level declarations ----------
+
+struct ImportDecl : Node {
+    std::string module;
+    explicit ImportDecl(std::string m) : module(std::move(m)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Import " << module << "\n";
+    }
+};
+
+struct FunctionDecl : Node {
+    std::string name;
+    std::vector<NodePtr> body;      // the statements inside the { }
+    explicit FunctionDecl(std::string n) : name(std::move(n)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Function " << name << "\n";
+        for (const auto& stmt : body) stmt->print(indent + 1);
+    }
+};
+
+// The whole program: a list of imports and functions.
+struct Program : Node {
+    std::vector<NodePtr> items;
+    void print(int indent) const override {
+        pad(indent); std::cout << "Program\n";
+        for (const auto& item : items) item->print(indent + 1);
+    }
+};

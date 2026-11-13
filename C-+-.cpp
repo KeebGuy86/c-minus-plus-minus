@@ -3,10 +3,26 @@
 #include <sstream>
 #include "token.h"
 #include "lexer.h"
+#include "ast.h"
 
 using namespace std;
 
 int main(int argc, char* argv[]) {
+
+    // TEMPORARY: build the Hello World tree by hand to test ast.h
+    Program prog;
+    prog.items.push_back(std::make_unique<ImportDecl>("io"));
+
+    auto fn = std::make_unique<FunctionDecl>("main");
+    auto out = std::make_unique<TypeStmt>();
+    out->items.push_back(std::make_unique<StringLit>("Hello World!"));
+    out->newline = true;
+    fn->body.push_back(std::move(out));
+    fn->body.push_back(std::make_unique<ReturnStmt>(std::make_unique<NumberLit>("0")));
+    prog.items.push_back(std::move(fn));
+
+    prog.print(0);
+
     if (argc < 2) {
         cout << "Usage: " << argv[0] << " <inputfile>" << endl;
         return 1;
