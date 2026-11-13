@@ -82,3 +82,13 @@ for (Integer i = 0; i < 10; i = i + 1) { ... }
 - Remove `DC_number` from the token list; rename `Character` to `Char`.
 - Add the two-character operators and `%`, `!`.
 - Escapes inside strings (`\t`, `\\`, `\"`).
+
+## Memory
+
+- **Decided:** no garbage collector.
+- **Decided:** scope-based cleanup. A value that owns memory is freed automatically when its scope ends. No full borrow checker.
+- **Open:** copy and move rules. What happens when one owning value is assigned to another.
+
+## Ternary
+- **Decided:** `condition ? a : b` picks `a` if the condition is true, otherwise `b`.
+- **Decided:** items inside `Type[ ]` are a string literal, a name, or an expression in parentheses (this settles the earlier open question).
