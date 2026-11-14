@@ -16,7 +16,8 @@ enum class TokenKind {
     KwWhile,            // while
 
     // type names and literals: my guess at what these mean, tell me if I'm wrong
-    KwInteger,          // your Integer
+    KwInt,          // your Integer
+    KwDeci,            //your Decimal
     KwBoolean,          // your Boolean
     KwChar,        // your Char
     KwString,           // String  (the type; the String below is a string literal)
@@ -83,7 +84,8 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::KwElse:      return "KwElse";
         case TokenKind::KwFor:       return "KwFor";
         case TokenKind::KwWhile:     return "KwWhile";
-        case TokenKind::KwInteger:   return "KwInteger";
+        case TokenKind::KwInt:   return "KwInt";
+        case TokenKind::KwDeci: return "KwDeci";
         case TokenKind::KwBoolean:   return "KwBoolean";
         case TokenKind::KwChar: return "KwChar";
         case TokenKind::Identifier:  return "Identifier";

@@ -133,7 +133,8 @@ private:
             {"while",  TokenKind::KwWhile},
             {"for",    TokenKind::KwFor},
             // types
-            {"Integer", TokenKind::KwInteger},
+            {"Int", TokenKind::KwInt},
+            {"Deci", TokenKind::KwDeci},
             {"Boolean", TokenKind::KwBoolean},
             {"String",  TokenKind::KwString},
             {"Char",    TokenKind::KwChar},

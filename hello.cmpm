@@ -1,5 +1,7 @@
-import <io>
-
 func main(){
-
+    Int x = 1 + 2 * 3
+    Int y = (1 + 2) * 3
+    Int z = 10 - 4 - 3
+    Type["x is" (x + 1)], \n
+    return 0
 }

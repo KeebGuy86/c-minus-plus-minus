@@ -55,8 +55,9 @@ private:
 
     // Is the current token one of the type names?
     bool isTypeKeyword() const{
-        return check(TokenKind::KwInteger) || check(TokenKind::KwBoolean) ||
-               check(TokenKind::KwString)  || check(TokenKind::KwChar);
+        return check(TokenKind::KwInt) || check(TokenKind::KwBoolean) ||
+               check(TokenKind::KwString)  || check(TokenKind::KwChar) ||
+               check(TokenKind::KwDeci);
     }
 
     //like match, but the token must be there, if not, it's a syntax error.
