@@ -1,6 +1,7 @@
-import <io>
-
 func main(){
-    Type["Hello World!"], \n
-    return 0;
+    Integer x = 5
+    String name = "Saad"
+    Integer y
+    Type["Hello," name], \n
+    return 0
 }

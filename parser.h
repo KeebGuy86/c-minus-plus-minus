@@ -53,6 +53,12 @@ private:
         return false;
     }
 
+    // Is the current token one of the type names?
+    bool isTypeKeyword() const{
+        return check(TokenKind::KwInteger) || check(TokenKind::KwBoolean) ||
+               check(TokenKind::KwString)  || check(TokenKind::KwChar);
+    }
+
     //like match, but the token must be there, if not, it's a syntax error.
     const Token& expect(TokenKind kind, const std::string& what){ //'what' describes what we want, for the error message
         if (!check(kind)){
@@ -103,6 +109,7 @@ private:
     NodePtr parseStatement(){
         if (match(TokenKind::KwType)) return parseTypeStmt();
         if (match(TokenKind::KwReturn)) return parseReturn();
+        if (isTypeKeyword()) return parseVarDecl();
         error("expected a statement (Type or return)");
     }
 
@@ -131,6 +138,20 @@ private:
         NodePtr value = parseExpression();
         match(TokenKind::Semicolon);    //the ';' is allowed here but not required
         return std::make_unique<ReturnStmt>(std::move(value));
+    }
+
+    NodePtr parseVarDecl(){
+        std::string typeName = advance().text;
+
+        const Token& name = expect(TokenKind::Identifier, " a variable name");
+
+        NodePtr init;
+        if (match(TokenKind::Assign)){
+            init = parseExpression();
+        }
+
+        match(TokenKind::Semicolon);
+        return std::make_unique<VarDecl>(typeName, name.text, std::move(init));
     }
 
     //just one value for now, a string, a name, or a number
