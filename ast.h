@@ -53,6 +53,30 @@ struct NameExpr : Node {
     }
 };
 
+struct BinaryExpr : Node {
+    std::string op;             // "+", "-", "*", "/" or "%"
+    NodePtr left, right;        // the two sides, each of which can be any expression
+    BinaryExpr(std::string o, NodePtr l, NodePtr r)
+        : op(std::move(o)), left(std::move(l)), right(std::move(r)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Binary " << op << "\n";
+        left->print(indent + 1);
+        right->print(indent + 1);
+    }
+};
+
+struct TernaryExpr : Node {
+    NodePtr condition, thenValue, elseValue;
+    TernaryExpr(NodePtr cond, NodePtr t, NodePtr e)
+        : condition(std::move(cond)), thenValue(std::move(t)), elseValue(std::move(e)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "Ternary\n";
+        condition->print(indent + 1);
+        thenValue->print(indent + 1);
+        elseValue->print(indent + 1);
+    }
+};
+
 // ---------- Statements: things that do something ----------
 
 // Type[ ... ], \n   ->  the items to print, and whether a newline follows

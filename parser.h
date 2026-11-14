@@ -120,7 +120,7 @@ private:
 
         //the items inside [] are expressions, until the closing bracket
         while (!check(TokenKind::RBracket) && !check(TokenKind::EndOfFile)){
-            stmt->items.push_back(parseExpression());
+            stmt->items.push_back(parsePrimary());
         }
         expect(TokenKind::RBracket, " ']' to end the 'Type' Statement");
 
@@ -135,27 +135,86 @@ private:
 
     //return 0;
     NodePtr parseReturn(){
-        NodePtr value = parseExpression();
+        NodePtr value = parseTernary();
         match(TokenKind::Semicolon);    //the ';' is allowed here but not required
         return std::make_unique<ReturnStmt>(std::move(value));
     }
 
-    NodePtr parseVarDecl(){
+    NodePtr parseVarDecl() {
         std::string typeName = advance().text;
-
-        const Token& name = expect(TokenKind::Identifier, " a variable name");
+        const Token& name = expect(TokenKind::Identifier, "a variable name");
 
         NodePtr init;
-        if (match(TokenKind::Assign)){
-            init = parseExpression();
+        if (match(TokenKind::Assign)) {
+            init = parseTernary();
         }
 
         match(TokenKind::Semicolon);
         return std::make_unique<VarDecl>(typeName, name.text, std::move(init));
     }
 
+      static int precedence(TokenKind kind) {
+        switch (kind){
+        case TokenKind::Star:
+        case TokenKind::Slash:
+        case TokenKind::Percent:      return 6;     // multiply, divide, remainder
+        case TokenKind::Plus:
+        case TokenKind::Minus:        return 5;     // add, subtract
+        case TokenKind::Less:
+        case TokenKind::Greater:
+        case TokenKind::LessEqual:
+        case TokenKind::GreaterEqual: return 4;     // ordering comparisons
+        case TokenKind::EqualEqual:
+        case TokenKind::BangEqual:    return 3;     // equality comparisons
+        case TokenKind::AmpAmp:       return 2;     // logical AND
+        case TokenKind::PipePipe:     return 1;     // logical OR
+        default:                      return 0;
+        }
+    }
+
+    NodePtr parseTernary() {
+        NodePtr condition = parseExpression();
+
+        if (!match(TokenKind::Question)) return condition;
+
+        NodePtr thenValue  = parseTernary();
+        expect(TokenKind::Colon, " ':' in the ? : expression");
+        NodePtr elseValue  = parseTernary();
+
+        return std::make_unique<TernaryExpr>(std::move(condition), std::move(thenValue), std::move(elseValue));
+    }
+
+    NodePtr parseExpression(int minPrec = 1) {
+        NodePtr left = parsePrimary();      // always starts with one value
+
+        while (true) {
+            int prec = precedence(current().kind);
+
+            // Stop if: the next token isn't an operator, it binds too weakly for this
+            // level, or it's on a NEW line (a new line ends the expression).
+            if (prec == 0 || prec < minPrec) {
+                break;
+            }
+
+            Token op = advance();       // take the operator (copied, since advance moves the finger)
+
+            // The right side may only absorb operators that bind TIGHTER than this one
+            // (prec + 1). That is what makes "10 - 4 - 3" group as (10 - 4) - 3.
+            NodePtr right = parseExpression(prec + 1);
+
+            // The new node becomes the "left" for the next turn of the loop.
+            left = std::make_unique<BinaryExpr>(op.text, std::move(left), std::move(right));
+        }
+        return left;
+    }
+
     //just one value for now, a string, a name, or a number
-    NodePtr parseExpression(){
+    NodePtr parsePrimary(){
+        if (match(TokenKind::LParen)) {
+            NodePtr inner = parseTernary();
+            expect(TokenKind::RParen, " ')' to close the parentheses");
+            return inner;
+        }
         if (check(TokenKind::StringLiteral)){
             return std::make_unique<StringLit>(advance().text);
         }
