@@ -79,7 +79,6 @@ struct TernaryExpr : Node {
 
 // ---------- Statements: things that do something ----------
 
-// Type[ ... ], \n   ->  the items to print, and whether a newline follows
 struct TypeStmt : Node {
     std::vector<NodePtr> items;     // what goes inside the [ ]
     bool newline = false;           // true if ", \n" was written after the ]
@@ -107,6 +106,18 @@ struct VarDecl : Node {
     void print(int indent) const override{
         pad(indent); std::cout << "VarDecl " << typeName << " " << name << "\n";
         if (init) init->print(indent + 1);      //only prints a value if there is one
+    }
+};
+
+struct AssignStmt : Node {
+    std::string name;
+    std::string op;
+    NodePtr value;
+    AssignStmt(std::string n, std::string o, NodePtr v)
+        : name(std::move(n)), op(std::move(o)), value(std::move(v)) {}
+    void print(int indent) const override{
+       pad(indent); std::cout << "Assign: " << name << " (" << op << ")\n";
+        value->print(indent + 1);
     }
 };
 

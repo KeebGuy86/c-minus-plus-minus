@@ -110,11 +110,11 @@ private:
     NodePtr parseStatement(){
         if (match(TokenKind::KwType)) return parseTypeStmt();
         if (match(TokenKind::KwReturn)) return parseReturn();
+        if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
         error("expected a statement (Type or return)");
     }
 
-    //Type["Hello World!"], \n              the ", \n" part is optional
     NodePtr parseTypeStmt(){
         expect(TokenKind::LBracket, " '[' after 'Type'");
         auto stmt = std::make_unique<TypeStmt>();
@@ -152,6 +152,19 @@ private:
 
         match(TokenKind::Semicolon);
         return std::make_unique<VarDecl>(typeName, name.text, std::move(init));
+    }
+
+    NodePtr parseAssignment(){
+        std::string name = advance().text;
+
+        Token arrow = current();
+        if (!match(TokenKind::Assign) && !match(TokenKind::LeftArrow)){
+            error("expected '=' or '<-' after the variable name");
+        }
+
+        NodePtr value = parseTernary();
+        match(TokenKind::Semicolon);
+        return std::make_unique<AssignStmt>(name, arrow.text, std::move(value));
     }
 
       static int precedence(TokenKind kind) {

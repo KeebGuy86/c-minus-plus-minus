@@ -55,6 +55,7 @@ enum class TokenKind {
     AmpAmp,             // &&
     PipePipe,           // ||
     Arrow,              // ->
+    LeftArrow,          // <-
 
     //conditional tokens
     Question,           // ?   (ternary: condition ? a : b)
@@ -123,6 +124,7 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::AmpAmp:       return "AmpAmp";
         case TokenKind::PipePipe:     return "PipePipe";
         case TokenKind::Arrow:        return "Arrow";
+        case TokenKind::LeftArrow:    return "LeftArrow";
         case TokenKind::Question:     return "Question";
         case TokenKind::Colon:        return "Colon";
     }

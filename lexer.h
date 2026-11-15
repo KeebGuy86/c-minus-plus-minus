@@ -51,9 +51,11 @@ public:
         case '"':
             //a double qoute means that a string is starting
             return read_string(start_line, start_col);
+
         case '<':
-            // "<=" is one token; a lone "<" stays Less (also used by import <io>)
+            // "<=" and "<-" are two-character tokens. A lone "<" stays Less,
             if (match('=')) return Token{TokenKind::LessEqual, "<=", start_line, start_col};
+            if (match('-')) return Token{TokenKind::LeftArrow, "<-", start_line, start_col};
             return Token{TokenKind::Less, "<", start_line, start_col};
 
         case '>':
