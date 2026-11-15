@@ -92,3 +92,27 @@ for (Integer i = 0; i < 10; i = i + 1) { ... }
 ## Ternary
 - **Decided:** `condition ? a : b` picks `a` if the condition is true, otherwise `b`.
 - **Decided:** items inside `Type[ ]` are a string literal, a name, or an expression in parentheses (this settles the earlier open question).
+
+## Assignment
+
+- **Decided:** `x = value` assigns to an existing variable.
+- **Decided:** `x <- value` is a second spelling of the same assignment, meant for updating a variable from its old value, e.g. `score <- score + 1`. It behaves exactly like `=`.
+- **Open:** whether the compiler should require the right side of `<-` to mention the variable being updated.
+- **Note:** `<-` is one token, so `a<-b` always reads as the arrow, never "a less than minus b".
+
+## Types (updated)
+
+- **Decided:** `Int`, `Char`, `Boolean`, `String`, `Deci` (decimal numbers). `Int` replaces `Integer`.
+
+## Declarations (updated)
+
+- **Decided:** several names in one declaration: `Int x, y, z`.
+- **Decided:** a single `= value` at the end applies to all the names, so `Int x, y, z = 0` sets all three to 0 (unlike C++, where only z would be set).
+
+## Control flow (updated)
+
+- **Decided:** `if` / `else if` / `else`, `while`, `for`, and `switch` / `case` / `default`.
+- **Decided:** `switch` has no fall-through. Each case runs only its own statements, so no `break` is needed.
+- **Decided:** `break` and `continue` exist, for loops.
+- **Open:** inside a `switch` that is inside a loop, does `break` leave the loop (proposed) or only the switch?
+- **Decided:** the three parts of a `for` header are separated by `;`.
