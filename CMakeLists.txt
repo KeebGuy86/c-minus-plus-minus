@@ -13,3 +13,4 @@ add_executable(cminus "C-+-.cpp"
         lexer.h
         ast.h
         parser.h)
+target_compile_options(cminus PRIVATE -Wall -Wextra)

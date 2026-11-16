@@ -144,15 +144,19 @@ private:
 
     NodePtr parseVarDecl() {
         std::string typeName = advance().text;
-        const Token& name = expect(TokenKind::Identifier, "a variable name");
+
+        std::vector<std::string> names;
+        do{
+            names.push_back(expect(TokenKind::Identifier, "a variable name").text);
+        }
+        while (match(TokenKind::Comma));
 
         NodePtr init;
-        if (match(TokenKind::Assign)) {
-            init = parseTernary();
-        }
+        if (match(TokenKind::Assign) || match(TokenKind::LeftArrow)) init = parseTernary();
 
+        if (check(TokenKind::Comma)) error("only one '= value' is allowed, at the end and it applies to all the names");
         match(TokenKind::Semicolon);
-        return std::make_unique<VarDecl>(typeName, name.text, std::move(init));
+        return std::make_unique<VarDecl>(typeName, std::move(names), std::move(init));
     }
 
     NodePtr parseAssignment(){

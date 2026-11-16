@@ -99,12 +99,17 @@ struct ReturnStmt : Node {
 
 struct VarDecl : Node {
     std::string typeName;   //"Integer" "String"
-    std::string name;       //variable name
+    std::vector<std::string> names;       //variable names
     NodePtr init;           //the strings value, stays empty if nothing was written
-    VarDecl(std::string t, std::string n, NodePtr i)
-        : typeName(std::move(t)), name(std::move(n)), init(std::move(i)) {}
+    VarDecl(std::string t, std::vector<std::string> ns, NodePtr i)
+        : typeName(std::move(t)), names(std::move(ns)), init(std::move(i)) {}
     void print(int indent) const override{
-        pad(indent); std::cout << "VarDecl " << typeName << " " << name << "\n";
+        pad(indent); std::cout << "VarDecl " << typeName << " ";
+        for (size_t i = 0; i < names.size(); i++){      //seperate the number of variables with commas
+            if (i > 0) std::cout << ", ";
+            std::cout << names[i];
+        }
+        std::cout << "\n";
         if (init) init->print(indent + 1);      //only prints a value if there is one
     }
 };
