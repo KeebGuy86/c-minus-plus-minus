@@ -1,6 +1,9 @@
+import <io>
+
 func main(){
-    Int score = 0
-    score = score + 1
-    score <- score + 1
-    score <- score * 2
+    String name
+    Type["Enter Name: "]
+    Read[name]
+
+    return 0;
 }

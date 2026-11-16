@@ -121,6 +121,14 @@ struct AssignStmt : Node {
     }
 };
 
+struct ReadStmt : Node {
+    std::string name;
+    explicit ReadStmt(std::string n) : name(std::move(n)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "Read " << name << "\n";
+    }
+};
+
 // ---------- Top-level declarations ----------
 
 struct ImportDecl : Node {

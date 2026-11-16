@@ -110,6 +110,7 @@ private:
     NodePtr parseStatement(){
         if (match(TokenKind::KwType)) return parseTypeStmt();
         if (match(TokenKind::KwReturn)) return parseReturn();
+        if (match(TokenKind::KwRead)) return parseReadStmt();
         if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
         error("expected a statement (Type or return)");
@@ -165,6 +166,14 @@ private:
         NodePtr value = parseTernary();
         match(TokenKind::Semicolon);
         return std::make_unique<AssignStmt>(name, arrow.text, std::move(value));
+    }
+
+    NodePtr parseReadStmt(){
+        expect(TokenKind::LBracket, " '[' after 'Read'");
+        const Token& name = (expect(TokenKind::Identifier, "a variable name to read into"));
+        expect(TokenKind::RBracket, " ']' for ending 'Read' Statement");
+        match(TokenKind::Semicolon);
+        return std::make_unique<ReadStmt>(name.text);
     }
 
       static int precedence(TokenKind kind) {
