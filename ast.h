@@ -134,6 +134,32 @@ struct ReadStmt : Node {
     }
 };
 
+struct Block : Node {
+    std::vector<NodePtr> statements;
+    void print(int indent) const override{
+        pad(indent); std::cout << "Block\n";
+        for (const auto& s : statements) s->print(indent + 1);
+    }
+};
+
+struct IfStmt : Node {
+    NodePtr condition, thenBranch, elseBranch;
+    IfStmt(NodePtr c, NodePtr t, NodePtr e)
+        : condition(std::move(c)), thenBranch(std::move(t)), elseBranch(std::move(e)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "If\n";
+        // Each part gets a label line, then its content one level deeper.
+        pad(indent + 1); std::cout << "Condition\n";
+        condition->print(indent + 2);
+        pad(indent + 1); std::cout << "Then\n";
+        thenBranch->print(indent + 2);
+        if (elseBranch) {
+            pad(indent + 1); std::cout << "Else\n";
+            elseBranch->print(indent + 2);
+        }       // closes the 'if (elseBranch)'
+    }           // closes print()
+};
+
 // ---------- Top-level declarations ----------
 
 struct ImportDecl : Node {

@@ -63,6 +63,8 @@ func main(){
 
 - **Decided:** C++ style, with parentheses and braces.
 
+- **Decided:** braces are optional when the body is a single statement. `else` binds to the nearest `if`.
+
 ```
 if (x > 3) { ... } else if (x > 1) { ... } else { ... }
 while (x < 10) { ... }

@@ -111,6 +111,7 @@ private:
         if (match(TokenKind::KwType)) return parseTypeStmt();
         if (match(TokenKind::KwReturn)) return parseReturn();
         if (match(TokenKind::KwRead)) return parseReadStmt();
+        if (match(TokenKind::KwIf)) return parseIfStmt();
         if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
         error("expected a statement (Type or return)");
@@ -180,7 +181,46 @@ private:
         return std::make_unique<ReadStmt>(name.text);
     }
 
-      static int precedence(TokenKind kind) {
+    NodePtr parseBlock(){
+        expect(TokenKind::LBrace, "'{' to start a block");
+        auto block = std::make_unique<Block>();
+        // Keep reading statements until the closing brace (or the end of the file,
+        // which would be an error caught by the expect below).
+        while (!check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)) {
+            block->statements.push_back(parseStatement());
+        }
+        expect(TokenKind::RBrace, "'}' to end the block");
+        return block;
+    }
+
+    NodePtr parseBody(){
+        if (check(TokenKind::LBrace)) return parseBlock();
+        auto block = std::make_unique<Block>();
+        block->statements.push_back(parseStatement());
+        return block;
+    }
+
+    NodePtr parseIfStmt(){
+        expect(TokenKind::LParen, " '(' after 'if' condition");
+        NodePtr condition = parseTernary();
+        expect(TokenKind::RParen, " ')' after the condition");
+
+        NodePtr thenBranch = parseBody();
+
+        NodePtr elseBranch;
+        if (match(TokenKind::KwElse)) {
+            if (match(TokenKind::KwIf)) {
+                // "else if": the else part is itself a whole if statement.
+                // This recursion is what makes chains of any length work.
+                elseBranch = parseIfStmt();
+            } else {
+                elseBranch = parseBody();      // plain "else": just a block
+            }
+        }
+        return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    static int precedence(TokenKind kind) {
         switch (kind){
         case TokenKind::Star:
         case TokenKind::Slash:

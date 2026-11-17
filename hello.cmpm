@@ -1,9 +1,10 @@
-import <io>
-
 func main(){
-       Int x, y, z = 1
-       Int a, b, c <- 3
-
-       Type[a ", " x], \n
-       return 0;
+    Int x = 5
+    if (x > 3) {
+        Type["big"], \n
+    } else if (x > 1) {
+        Type["medium"], \n
+    } else {
+        Type["small"], \n
+    }
 }
