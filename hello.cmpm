@@ -1,9 +1,23 @@
+import <io>
+
 func main(){
-    Int i = 0
-    while (i < 10) {
-        i <- i + 1
-        if (i == 3) continue
-        if (i > 5) break
-        Type[i], \n
-    }
+    Int a = 2
+    Int b = 3
+    add(a, b)
+    Int r = twice(a + 1)
+    Type["r is" r], \n
+}
+
+func add(Int a, Int b){
+    Int result
+    result <- a + b
+}
+
+func twice(Int n) -> Int {
+    return n * 2
+}
+
+func hello(){
+    Type["hi"], \n
+    return
 }

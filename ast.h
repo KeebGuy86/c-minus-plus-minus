@@ -65,6 +65,16 @@ struct BinaryExpr : Node {
     }
 };
 
+struct CallExpr : Node {
+    std::string name;
+    std::vector<NodePtr> args;
+    explicit CallExpr(std::string n) : name(std::move(n)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "Call " << name << "\n";
+        for (const auto& a : args) a->print(indent + 1);
+    }
+};
+
 struct TernaryExpr : Node {
     NodePtr condition, thenValue, elseValue;
     TernaryExpr(NodePtr cond, NodePtr t, NodePtr e)
@@ -93,7 +103,7 @@ struct ReturnStmt : Node {
     explicit ReturnStmt(NodePtr v) : value(std::move(v)) {}
     void print(int indent) const override {
         pad(indent); std::cout << "Return\n";
-        value->print(indent + 1);
+        if (value) value->print(indent + 1);
     }
 };
 
@@ -209,12 +219,26 @@ struct ImportDecl : Node {
     }
 };
 
+struct Param {
+    std::string typeName;
+    std::string name;
+};
+
 struct FunctionDecl : Node {
     std::string name;
-    std::vector<NodePtr> body;      // the statements inside the { }
+    std::vector<Param> params;
+    std::string returnType;
+    std::vector<NodePtr> body;
     explicit FunctionDecl(std::string n) : name(std::move(n)) {}
     void print(int indent) const override {
-        pad(indent); std::cout << "Function " << name << "\n";
+        pad(indent); std::cout << "Function " << name << "(";
+        for (size_t i = 0; i < params.size(); i++) {
+            if (i > 0) std::cout << ", ";
+            std::cout << params[i].typeName << " " << params[i].name;
+        }
+        std::cout << ")";
+        if (!returnType.empty()) std::cout << " -> " << returnType;
+        std::cout << "\n";
         for (const auto& stmt : body) stmt->print(indent + 1);
     }
 };

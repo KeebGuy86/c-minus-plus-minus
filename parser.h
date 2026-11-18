@@ -54,6 +54,13 @@ private:
         return false;
     }
 
+    bool callFollows() const{
+        if (!check(TokenKind::Identifier) || pos + 1 >= tokens.size()) return false;
+        const Token& name = tokens[pos];
+        const Token& next = tokens[pos + 1];
+        return next.kind == TokenKind::LParen && next.line == name.line && next.column == name.column + static_cast<int>(name.text.size());
+    }
+
     bool lastWasSemicolon() const {
         return pos > 0 && tokens[pos - 1].kind == TokenKind::Semicolon;
     }
@@ -95,19 +102,36 @@ private:
         return std::make_unique<ImportDecl>(name.text);
     }
 
-    NodePtr parseFunction(){
-        const Token& name = expect(TokenKind::Identifier, " a function name");
-        expect(TokenKind::LParen, " '(' after a function name");
-        expect(TokenKind::RParen, " ')'");
-        expect(TokenKind::LBrace, " '{' to the start the function body");
+    NodePtr parseFunction() {
+        std::string name = expect(TokenKind::Identifier, "a function name").text;
+        auto fn = std::make_unique<FunctionDecl>(name);
+        expect(TokenKind::LParen, "'(' after the function name");
 
-        auto fn = std::make_unique<FunctionDecl>(name.text);
 
-        //The body is statements until the closing bracket
-        while (!check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)){
-                fn->body.push_back(parseStatement());
+        if (!check(TokenKind::RParen)) {
+            do {
+                if (!isTypeKeyword()) {
+                    error("expected a parameter type (Int, Deci, Char, Boolean or String)");
+                }
+                std::string typeName = advance().text;
+                std::string paramName = expect(TokenKind::Identifier, "a parameter name").text;
+                fn->params.push_back(Param{typeName, paramName});
+            } while (match(TokenKind::Comma));
         }
-        expect(TokenKind::RBrace, " '}' after the function body");
+        expect(TokenKind::RParen, "')' to end the parameter list");
+
+        if (match(TokenKind::Arrow)) {
+            if (!isTypeKeyword()) {
+                error("expected a return type after '->'");
+            }
+            fn->returnType = advance().text;
+        }
+
+        expect(TokenKind::LBrace, "'{' to start the function body");
+        while (!check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)) {
+            fn->body.push_back(parseStatement());
+        }
+        expect(TokenKind::RBrace, "'}' to end the function body");
         return fn;
     }
 
@@ -121,8 +145,15 @@ private:
         if (check(TokenKind::KwBreak)) return parseBreak();
         if (check(TokenKind::KwContinue)) return parseContinue();
         if (match(TokenKind::KwIf)) return parseIfStmt();
-        if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
+        if (check(TokenKind::Identifier)) {
+            if (callFollows()) {
+                NodePtr call = parseCall();
+                match(TokenKind::Semicolon);
+                return call;
+            }
+            return parseAssignment();
+        }
         error("expected a statement (Type, Read, return, a declaration, an assignment, if, while, for, break or continue)");
     }
 
@@ -130,25 +161,31 @@ private:
         expect(TokenKind::LBracket, " '[' after 'Type'");
         auto stmt = std::make_unique<TypeStmt>();
 
-        //the items inside [] are expressions, until the closing bracket
         while (!check(TokenKind::RBracket) && !check(TokenKind::EndOfFile)){
             stmt->items.push_back(parsePrimary());
         }
         expect(TokenKind::RBracket, " ']' to end the 'Type' Statement");
 
-        //", \n" after the bracket means, print a newline after the Type[]
         if (match(TokenKind::Comma)){
             expect(TokenKind::NewlineMark, " '\\n' after the comma");
             stmt->newline = true;
         }
-        match(TokenKind::Semicolon);    // a ';' is allowed here but not required
+        match(TokenKind::Semicolon);
         return stmt;
     }
 
-    //return 0;
-    NodePtr parseReturn(){
-        NodePtr value = parseTernary();
-        match(TokenKind::Semicolon);    //the ';' is allowed here but not required
+    // return value      or      return   (nothing after it)
+    NodePtr parseReturn() {
+        int returnLine = tokens[pos - 1].line;      // the line the 'return' keyword was on
+
+        bool bare = check(TokenKind::RBrace) || check(TokenKind::Semicolon) ||
+                    check(TokenKind::EndOfFile) || current().line != returnLine;
+
+        NodePtr value;
+        if (!bare) {
+            value = parseTernary();
+        }
+        match(TokenKind::Semicolon);
         return std::make_unique<ReturnStmt>(std::move(value));
     }
 
@@ -340,7 +377,21 @@ private:
         return left;
     }
 
-    //just one value for now, a string, a name, or a number
+    NodePtr parseCall() {
+        std::string name = advance().text;
+        expect(TokenKind::LParen, "'(' after the function name");
+        auto call = std::make_unique<CallExpr>(name);
+
+        // Arguments: zero or more values separated by commas.
+        if (!check(TokenKind::RParen)) {
+            do {
+                call->args.push_back(parseTernary());
+            } while (match(TokenKind::Comma));
+        }
+        expect(TokenKind::RParen, "')' to end the call");
+        return call;
+    }
+
     NodePtr parsePrimary(){
         if (match(TokenKind::LParen)) {
             NodePtr inner = parseTernary();
@@ -352,6 +403,9 @@ private:
         }
         if (check(TokenKind::Number)){
             return std::make_unique<NumberLit>(advance().text);
+        }
+        if (callFollows()) {
+            return parseCall();
         }
         if (check(TokenKind::Identifier)){
             return std::make_unique<NameExpr>(advance().text);
