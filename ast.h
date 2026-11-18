@@ -160,9 +160,9 @@ struct IfStmt : Node {
     }           // closes print()
 };
 
-struct WhileStmt : Node {
+struct WhileLoop : Node {
     NodePtr condition, body;
-    WhileStmt(NodePtr cond, NodePtr b) : condition(std::move(cond)), body(std::move(b)) {}
+    WhileLoop(NodePtr cond, NodePtr b) : condition(std::move(cond)), body(std::move(b)) {}
     void print(int indent) const override{
         pad(indent); std::cout << "While\n";
         pad(indent + 1); std::cout << "Condition\n";
@@ -171,6 +171,34 @@ struct WhileStmt : Node {
         body->print(indent + 2);
     }
 };
+
+struct ForLoop : Node {
+    NodePtr condition, init, update, body;
+    ForLoop(NodePtr cond, NodePtr i, NodePtr upd, NodePtr b) : condition(std::move(cond)), init(std::move(i)), update(std::move(upd)), body(std::move(b)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "For\n";
+        //only print the parts that were actually written
+        if (init) { pad(indent + 1); std::cout << "Init\n"; init->print(indent + 2);}
+        if (condition) { pad(indent + 1); std::cout << "Condition\n"; condition->print(indent + 2);}
+        if (update) { pad(indent + 1); std::cout << "update\n"; update->print(indent + 2);}
+
+        pad(indent + 1); std::cout << "Body\n";
+        body->print(indent + 2);
+    }
+};
+
+struct BreakStmt : Node {       //break
+    void print(int indent) const override{
+        pad(indent); std::cout << "Break\n";
+    }
+};
+
+struct ContinueStmt: Node {     //continue
+    void print(int indent) const override{
+        pad(indent); std::cout << "Continue\n";
+    }
+};
+
 // ---------- Top-level declarations ----------
 
 struct ImportDecl : Node {

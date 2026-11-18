@@ -1,7 +1,9 @@
 func main(){
     Int i = 0
-    while (i < 3) {
-        Type["i is" i], \n
+    while (i < 10) {
         i <- i + 1
+        if (i == 3) continue
+        if (i > 5) break
+        Type[i], \n
     }
 }

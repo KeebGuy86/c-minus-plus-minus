@@ -23,6 +23,7 @@ public:
 private:
     std::vector<Token> tokens;
     size_t pos = 0;
+    int loopDepth = 0;
 
     //helpers for moving through the tokens
     //the token under the finger, without moving it
@@ -51,6 +52,10 @@ private:
             return true;
         }
         return false;
+    }
+
+    bool lastWasSemicolon() const {
+        return pos > 0 && tokens[pos - 1].kind == TokenKind::Semicolon;
     }
 
     // Is the current token one of the type names?
@@ -112,10 +117,13 @@ private:
         if (match(TokenKind::KwReturn)) return parseReturn();
         if (match(TokenKind::KwRead)) return parseReadStmt();
         if (match(TokenKind::KwWhile)) return parseWhileStmt();
+        if (match(TokenKind::KwFor)) return parseForStmt();
+        if (check(TokenKind::KwBreak)) return parseBreak();
+        if (check(TokenKind::KwContinue)) return parseContinue();
         if (match(TokenKind::KwIf)) return parseIfStmt();
         if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
-        error("expected a statement (Type or return)");
+        error("expected a statement (Type, Read, return, a declaration, an assignment, if, while, for, break or continue)");
     }
 
     NodePtr parseTypeStmt(){
@@ -225,8 +233,56 @@ private:
         expect(TokenKind::LParen, " '(' after 'while'");
         NodePtr condition = parseTernary();
         expect(TokenKind::RParen, " ')' after the condition");
+        loopDepth++;
         NodePtr body = parseBody();
-        return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
+        loopDepth--;
+        return std::make_unique<WhileLoop>(std::move(condition), std::move(body));
+    }
+
+    NodePtr parseForStmt()
+    {
+        expect(TokenKind::LParen, " '(' after 'for'");
+
+        NodePtr init;
+        if (check(TokenKind::Semicolon)){
+            advance();
+        } else{
+            if (isTypeKeyword())                    init = parseVarDecl();
+            else if (check(TokenKind::Identifier))  init = parseAssignment();
+            else error("expected a declaration or assignment of 'for'");
+
+            if (!lastWasSemicolon()) error("expected ';' after the first part of the for header");
+        }
+        NodePtr condition;
+        if (!check(TokenKind::Semicolon)){
+            condition = parseTernary();
+        }
+        expect(TokenKind::Semicolon, " ';' after the condition of for the header");
+
+        NodePtr update;
+        if (!check(TokenKind::RParen)){
+            if (check(TokenKind::Identifier)) update = parseAssignment();
+            else error("expected an assignment for the last part of 'for'");
+        }
+        expect(TokenKind::RParen, " ')' to end the 'for' header");
+
+        loopDepth++;
+        NodePtr body = parseBody();
+        loopDepth--;
+        return std::make_unique<ForLoop>(std::move(init), std::move(condition), std::move(update), std::move(body));
+    }
+
+    NodePtr parseBreak(){
+        if (loopDepth == 0) error("' break' can only be used inside a loop");
+        advance();
+        match(TokenKind::Semicolon);
+        return std::make_unique<BreakStmt>();
+    }
+
+    NodePtr parseContinue(){
+        advance();
+        match(TokenKind::Semicolon);
+        return std::make_unique<ContinueStmt>();
     }
 
     static int precedence(TokenKind kind) {

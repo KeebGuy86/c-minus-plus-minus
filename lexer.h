@@ -134,6 +134,8 @@ private:
             {"else",   TokenKind::KwElse},
             {"while",  TokenKind::KwWhile},
             {"for",    TokenKind::KwFor},
+            {"break",    TokenKind::KwBreak},
+            {"continue", TokenKind::KwContinue},
             // types
             {"Int", TokenKind::KwInt},
             {"Deci", TokenKind::KwDeci},
