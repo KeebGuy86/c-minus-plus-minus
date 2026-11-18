@@ -1,23 +1,26 @@
 import <io>
 
 func main(){
-    Int a = 2
-    Int b = 3
-    add(a, b)
-    Int r = twice(a + 1)
-    Type["r is" r], \n
-}
+    Int x = 6
+    Int y = 3
+    Int z
 
-func add(Int a, Int b){
-    Int result
-    result <- a + b
-}
+    Char op
 
-func twice(Int n) -> Int {
-    return n * 2
-}
+    Type["Enter Operator: "]
+    Read[op]
 
-func hello(){
-    Type["hi"], \n
-    return
+    switch(op){
+        case '+':
+            z = x + y
+            Type["The sum is " z], \n
+        case '-':
+            z = x - y
+            Type["The difference is " z], \n
+        case '*', 'x':
+            z = x * y
+            Type["The product is " z], \n
+        default:
+            Type["Unknown Operator!"], \n
+    }
 }

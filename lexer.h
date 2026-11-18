@@ -86,6 +86,7 @@ public:
             return Token{TokenKind::Invalid, "|", start_line, start_col};
 
         case '%': return Token{TokenKind::Percent, "%", start_line, start_col};
+        case '\'':  return read_char(start_line, start_col);    // A single quote starts a character literal like 'a' or '\n'.
         default:
             // A letter means a word is starting, so read the whole word.
             if (is_letter(c)) {
@@ -136,6 +137,9 @@ private:
             {"for",    TokenKind::KwFor},
             {"break",    TokenKind::KwBreak},
             {"continue", TokenKind::KwContinue},
+            {"switch",  TokenKind::KwSwitch},
+            {"case",    TokenKind::KwCase},
+            {"default", TokenKind::KwDefault},
             // types
             {"Int", TokenKind::KwInt},
             {"Deci", TokenKind::KwDeci},
@@ -204,6 +208,38 @@ private:
 
         advance();
         return Token{TokenKind::StringLiteral, value, start_line, start_col};
+    }
+
+    Token read_char(int start_line, int start_col) {
+        if (at_end() || peek() == '\n') {
+            return Token{TokenKind::Invalid, "", start_line, start_col};
+        }
+        if (peek() == '\'') {
+            advance();
+            return Token{TokenKind::Invalid, "", start_line, start_col};
+        }
+
+        char c = advance();
+        if (c == '\\') {
+            if (at_end() || peek() == '\n') {
+                return Token{TokenKind::Invalid, "\\", start_line, start_col};
+            }
+            char e = advance();
+            switch (e) {
+            case 'n':  c = '\n'; break;
+            case 't':  c = '\t'; break;
+            case '\\': c = '\\'; break;
+            case '\'': c = '\''; break;
+            default:   return Token{TokenKind::Invalid, std::string(1, e), start_line, start_col};
+            }
+        }
+
+
+        if (peek() != '\'') {
+            return Token{TokenKind::Invalid, std::string(1, c), start_line, start_col};
+        }
+        advance();
+        return Token{TokenKind::CharLiteral, std::string(1, c), start_line, start_col};
     }
 
     bool at_end() const{

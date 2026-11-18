@@ -45,6 +45,22 @@ struct NumberLit : Node {
     }
 };
 
+struct BoolLit : Node {
+    bool value;
+    explicit BoolLit(bool v) : value(v) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "Boolean " << (value ? "true" : "false") << "\n";
+    }
+};
+
+struct CharLit : Node {
+    char value;
+    explicit CharLit(char v) : value(v) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "Char " << value << "\n";
+    }
+};
+
 struct NameExpr : Node {
     std::string name;
     explicit NameExpr(std::string n) : name(std::move(n)) {}
@@ -91,7 +107,7 @@ struct TernaryExpr : Node {
 
 struct TypeStmt : Node {
     std::vector<NodePtr> items;     // what goes inside the [ ]
-    bool newline = false;           // true if ", \n" was written after the ]
+    bool newline = false;           // true if ", \n" was written after the ']'
     void print(int indent) const override {
         pad(indent); std::cout << "Type" << (newline ? " (newline)" : "") << "\n";
         for (const auto& item : items) item->print(indent + 1);
@@ -206,6 +222,33 @@ struct BreakStmt : Node {       //break
 struct ContinueStmt: Node {     //continue
     void print(int indent) const override{
         pad(indent); std::cout << "Continue\n";
+    }
+};
+
+struct CaseClause : Node {
+    std::vector<NodePtr> labels;
+    bool isDefault = false;
+    NodePtr body;
+    void print(int indent) const override{
+        pad(indent); std::cout << (isDefault ? "Default" : "Case") << "\n";
+        for (const auto& l : labels){
+            pad(indent + 1); std::cout << "Label\n";
+            l->print(indent + 2);
+        }
+        pad(indent + 1); std::cout << "Body\n";
+        body->print(indent + 2);
+    }
+};
+
+struct SwitchStmt : Node {
+    NodePtr subject;
+    std::vector<NodePtr> cases;
+    explicit SwitchStmt(NodePtr s) : subject(std::move(s)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Switch\n";
+        pad(indent + 1); std::cout << "Subject\n";
+        subject->print(indent + 2);
+        for (const auto& c : cases) c->print(indent + 1);
     }
 };
 

@@ -47,6 +47,8 @@ enum class TokenKind {
     // operators
     Plus, Minus, Star, Slash,
 
+    KwSwitch, KwCase, KwDefault, CharLiteral,
+
     Percent,            // %
     Assign,             // =
     EqualEqual,         // ==
@@ -116,6 +118,10 @@ inline const char* kind_name(TokenKind k)
         case TokenKind::Minus:       return "Minus";
         case TokenKind::Star:        return "Star";
         case TokenKind::Slash:       return "Slash";
+        case TokenKind::KwSwitch:     return "KwSwitch";
+        case TokenKind::KwCase:       return "KwCase";
+        case TokenKind::KwDefault:    return "KwDefault";
+        case TokenKind::CharLiteral:  return "CharLiteral";
         case TokenKind::EndOfFile:   return "EndOfFile";
         case TokenKind::Invalid:     return "Invalid";
         case TokenKind::Percent:      return "Percent";

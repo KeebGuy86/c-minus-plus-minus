@@ -142,6 +142,7 @@ private:
         if (match(TokenKind::KwRead)) return parseReadStmt();
         if (match(TokenKind::KwWhile)) return parseWhileStmt();
         if (match(TokenKind::KwFor)) return parseForStmt();
+        if (match(TokenKind::KwSwitch)) return parseSwitch();
         if (check(TokenKind::KwBreak)) return parseBreak();
         if (check(TokenKind::KwContinue)) return parseContinue();
         if (match(TokenKind::KwIf)) return parseIfStmt();
@@ -322,6 +323,43 @@ private:
         return std::make_unique<ContinueStmt>();
     }
 
+    NodePtr parseSwitch(){
+        expect(TokenKind::LParen, " '(' after 'switch'");
+        NodePtr subject = parseTernary();
+        expect(TokenKind::RParen, " ')' after the switch value");
+        expect(TokenKind::LBrace, " '{' to start the switch body");
+
+        auto sw = std::make_unique<SwitchStmt>(std::move(subject));
+        bool sawDefault = false;
+
+    while (!check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)){
+        auto clause = std::make_unique<CaseClause>();
+
+        if (match(TokenKind::KwCase)){
+            do {
+              clause->labels.push_back(parseExpression());
+            } while (match(TokenKind::Comma));
+        }
+        else if (match(TokenKind::KwDefault)){
+            if (sawDefault) error("a switch can only have 1 default");
+            sawDefault = true;
+            clause->isDefault = true;
+        }   else{
+            error("expected 'case' or 'default' inside of switch");
+        }
+        expect(TokenKind::Colon, " ':' after the case label");
+
+        auto body = std::make_unique<Block>();
+        while (!check(TokenKind::KwCase) && !check(TokenKind::KwDefault) && !check(TokenKind::RBrace) && !check(TokenKind::EndOfFile)){
+                body->statements.push_back(parseStatement());
+            }
+        clause->body = std::move(body);
+        sw->cases.push_back(std::move(clause));
+        }
+        expect(TokenKind::RBrace, " '}' to end the 'switch' statement");
+        return sw;
+    }
+
     static int precedence(TokenKind kind) {
         switch (kind){
         case TokenKind::Star:
@@ -398,6 +436,9 @@ private:
             expect(TokenKind::RParen, " ')' to close the parentheses");
             return inner;
         }
+        if (check(TokenKind::CharLiteral)){
+            return std::make_unique<CharLit>(advance().text[0]);
+        }
         if (check(TokenKind::StringLiteral)){
             return std::make_unique<StringLit>(advance().text);
         }
@@ -410,6 +451,8 @@ private:
         if (check(TokenKind::Identifier)){
             return std::make_unique<NameExpr>(advance().text);
         }
+        if (match(TokenKind::KwTrue))  return std::make_unique<BoolLit>(true);
+        if (match(TokenKind::KwFalse)) return std::make_unique<BoolLit>(false);
         error("expected a value, e.g. a string, number or identifier");
     }
 };
