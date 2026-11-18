@@ -41,7 +41,7 @@ private:
     }
 
     //is the current token of this kind
-    bool check(TokenKind kind) const {
+    [[nodiscard]] bool check(TokenKind kind) const {
         return current().kind == kind;
     }
 
