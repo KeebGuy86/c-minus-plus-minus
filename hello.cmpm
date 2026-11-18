@@ -1,10 +1,7 @@
 func main(){
-    Int x = 5
-    if (x > 3) {
-        Type["big"], \n
-    } else if (x > 1) {
-        Type["medium"], \n
-    } else {
-        Type["small"], \n
+    Int i = 0
+    while (i < 3) {
+        Type["i is" i], \n
+        i <- i + 1
     }
 }

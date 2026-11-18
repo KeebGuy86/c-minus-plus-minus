@@ -160,6 +160,17 @@ struct IfStmt : Node {
     }           // closes print()
 };
 
+struct WhileStmt : Node {
+    NodePtr condition, body;
+    WhileStmt(NodePtr cond, NodePtr b) : condition(std::move(cond)), body(std::move(b)) {}
+    void print(int indent) const override{
+        pad(indent); std::cout << "While\n";
+        pad(indent + 1); std::cout << "Condition\n";
+        condition->print(indent + 2);
+        pad(indent + 1); std::cout << "Body\n";
+        body->print(indent + 2);
+    }
+};
 // ---------- Top-level declarations ----------
 
 struct ImportDecl : Node {

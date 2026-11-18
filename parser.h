@@ -111,6 +111,7 @@ private:
         if (match(TokenKind::KwType)) return parseTypeStmt();
         if (match(TokenKind::KwReturn)) return parseReturn();
         if (match(TokenKind::KwRead)) return parseReadStmt();
+        if (match(TokenKind::KwWhile)) return parseWhileStmt();
         if (match(TokenKind::KwIf)) return parseIfStmt();
         if (check(TokenKind::Identifier)) return parseAssignment();
         if (isTypeKeyword()) return parseVarDecl();
@@ -218,6 +219,14 @@ private:
             }
         }
         return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    NodePtr parseWhileStmt(){
+        expect(TokenKind::LParen, " '(' after 'while'");
+        NodePtr condition = parseTernary();
+        expect(TokenKind::RParen, " ')' after the condition");
+        NodePtr body = parseBody();
+        return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
     }
 
     static int precedence(TokenKind kind) {
