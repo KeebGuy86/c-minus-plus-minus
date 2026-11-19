@@ -54,12 +54,15 @@ private:
         return false;
     }
 
-    bool callFollows() const{
+    bool nameThenAdjacent(TokenKind kind) const {
         if (!check(TokenKind::Identifier) || pos + 1 >= tokens.size()) return false;
         const Token& name = tokens[pos];
         const Token& next = tokens[pos + 1];
-        return next.kind == TokenKind::LParen && next.line == name.line && next.column == name.column + static_cast<int>(name.text.size());
+        return next.kind == kind && next.line == name.line &&
+               next.column == name.column + static_cast<int>(name.text.size());
     }
+    bool callFollows()  const { return nameThenAdjacent(TokenKind::LParen); }
+    bool indexFollows() const { return nameThenAdjacent(TokenKind::LBracket); }
 
     bool lastWasSemicolon() const {
         return pos > 0 && tokens[pos - 1].kind == TokenKind::Semicolon;
@@ -193,22 +196,50 @@ private:
     NodePtr parseVarDecl() {
         std::string typeName = advance().text;
 
-        std::vector<std::string> names;
-        do{
-            names.push_back(expect(TokenKind::Identifier, "a variable name").text);
-        }
-        while (match(TokenKind::Comma));
+        std::vector<Declname> names;
+        do {
+            Declname n;
+            n.name = expect(TokenKind::Identifier, "a variable name").text;
+            if (match(TokenKind::LBracket)) {
+                n.size = expect(TokenKind::Number, "a number for the array size").text;
+                expect(TokenKind::RBracket, "']' after the array size");
+            }
+            names.push_back(n);
+        } while (match(TokenKind::Comma));
 
         NodePtr init;
-        if (match(TokenKind::Assign) || match(TokenKind::LeftArrow)) init = parseTernary();
-
-        if (check(TokenKind::Comma)) error("only one '= value' is allowed, at the end and it applies to all the names");
-        match(TokenKind::Semicolon);
+        if (match(TokenKind::Assign) || match(TokenKind::LeftArrow)) {
+            if (check(TokenKind::LBracket)) {
+                for (const Declname& n : names) {
+                    if (n.size.empty()) {
+                        error("starting values in [ ... ] can only be given to an array, but '" +
+                              n.name + "' is not one");
+                    }
+                }
+            }
+            init = parseInitializer();
+        }
         return std::make_unique<VarDecl>(typeName, std::move(names), std::move(init));
+    }
+
+    NodePtr parseInitializer() {
+        if (!check(TokenKind::LBracket)) return parseTernary();
+        advance();
+        auto values = std::make_unique<ArrayInit>();
+        if (!check(TokenKind::RBracket)) {
+            do { values->items.push_back(parseTernary()); } while (match(TokenKind::Comma));
+        }
+        expect(TokenKind::RBracket, "']' to end the starting values");
+        return values;
     }
 
     NodePtr parseAssignment(){
         std::string name = advance().text;
+        NodePtr index;
+        if (match(TokenKind::LBracket)) {
+            index = parseTernary();
+            expect(TokenKind::RBracket, "']' after the index");
+        }
 
         Token arrow = current();
         if (!match(TokenKind::Assign) && !match(TokenKind::LeftArrow)){
@@ -217,15 +248,20 @@ private:
 
         NodePtr value = parseTernary();
         match(TokenKind::Semicolon);
-        return std::make_unique<AssignStmt>(name, arrow.text, std::move(value));
+        return std::make_unique<AssignStmt>(name, arrow.text, std::move(value), std::move(index));
     }
 
     NodePtr parseReadStmt(){
         expect(TokenKind::LBracket, " '[' after 'Read'");
         const Token& name = (expect(TokenKind::Identifier, "a variable name to read into"));
+        NodePtr index;
+        if (match(TokenKind::LBracket)) {
+            index = parseTernary();
+            expect(TokenKind::RBracket, "']' after the index");
+        }
         expect(TokenKind::RBracket, " ']' for ending 'Read' Statement");
         match(TokenKind::Semicolon);
-        return std::make_unique<ReadStmt>(name.text);
+        return std::make_unique<ReadStmt>(name.text, std::move(index));
     }
 
     NodePtr parseBlock(){
@@ -447,6 +483,13 @@ private:
         }
         if (callFollows()) {
             return parseCall();
+        }
+        if (indexFollows()) {
+            std::string name = advance().text;
+            expect(TokenKind::LBracket, "'['");
+            NodePtr index = parseTernary();
+            expect(TokenKind::RBracket, "']' after the index");
+            return std::make_unique<IndexExpr>(name, std::move(index));
         }
         if (check(TokenKind::Identifier)){
             return std::make_unique<NameExpr>(advance().text);

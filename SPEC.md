@@ -54,6 +54,16 @@ func main(){
 - **Decided:** `func add(Integer a, Integer b) -> Integer { ... }`.
 - **Decided:** a function with no `->` returns nothing, except `main`, which always returns `Integer`.
 
+## Arrays
+
+- **Decided:** `int num[5]` declares an array. The size is a number written in the code. Several names are allowed: `int a[3], b, c[2]`.
+- **Decided:** indexing is zero-based: `num[0]` is the first element.
+- **Decided:** `num[i]` reads an element, `num[i] = 7` and `num[i] <- 7` write one, and `Read[num[i]]` reads input into one.
+- **Decided:** a declaration can start an array with a list, `int num[5] = [1, 2, 3, 4, 5]`. Either arrow works, with a list or a single value. `int num[100] <- 0` does not set every element to 0.
+- **Open:** what exactly a single value does in an array declaration. To be decided at the code generator.
+- **Open:** whether a list with the wrong number of items is an error (proposed: yes).
+
+
 ## Statement endings
 
 - **Decided:** `;` is not required everywhere.

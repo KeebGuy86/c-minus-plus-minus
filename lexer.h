@@ -141,11 +141,11 @@ private:
             {"case",    TokenKind::KwCase},
             {"default", TokenKind::KwDefault},
             // types
-            {"Int", TokenKind::KwInt},
-            {"Deci", TokenKind::KwDeci},
-            {"Boolean", TokenKind::KwBoolean},
-            {"String",  TokenKind::KwString},
-            {"Char",    TokenKind::KwChar},
+            {"int", TokenKind::KwInt},
+            {"deci", TokenKind::KwDeci},
+            {"bool", TokenKind::KwBoolean},
+            {"string",  TokenKind::KwString},
+            {"char",    TokenKind::KwChar},
             // Boolean values
             {"true",   TokenKind::KwTrue},
             {"false",  TokenKind::KwFalse},

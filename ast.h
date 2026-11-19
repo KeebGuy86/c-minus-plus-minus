@@ -91,6 +91,16 @@ struct CallExpr : Node {
     }
 };
 
+struct IndexExpr : Node {
+    std::string name;
+    NodePtr index;
+    IndexExpr(std::string n, NodePtr i) : name(std::move(n)), index(std::move(i)) {}
+    void print(int indent) const override {
+        pad(indent); std::cout << "Index " << name << "\n";
+        index->print(indent + 1);
+    }
+};
+
 struct TernaryExpr : Node {
     NodePtr condition, thenValue, elseValue;
     TernaryExpr(NodePtr cond, NodePtr t, NodePtr e)
@@ -123,17 +133,23 @@ struct ReturnStmt : Node {
     }
 };
 
+struct Declname{
+    std::string name;
+    std::string size;
+};
+
 struct VarDecl : Node {
     std::string typeName;   //"Integer" "String"
-    std::vector<std::string> names;       //variable names
+    std::vector<Declname> names;       //variable names
     NodePtr init;           //the strings value, stays empty if nothing was written
-    VarDecl(std::string t, std::vector<std::string> ns, NodePtr i)
+    VarDecl(std::string t, std::vector<Declname> ns, NodePtr i)
         : typeName(std::move(t)), names(std::move(ns)), init(std::move(i)) {}
     void print(int indent) const override{
         pad(indent); std::cout << "VarDecl " << typeName << " ";
-        for (size_t i = 0; i < names.size(); i++){      //seperate the number of variables with commas
+        for (size_t i = 0; i < names.size(); i++) {
             if (i > 0) std::cout << ", ";
-            std::cout << names[i];
+            std::cout << names[i].name;
+            if (!names[i].size.empty()) std::cout << "[" << names[i].size << "]";
         }
         std::cout << "\n";
         if (init) init->print(indent + 1);      //only prints a value if there is one
@@ -144,9 +160,14 @@ struct AssignStmt : Node {
     std::string name;
     std::string op;
     NodePtr value;
-    AssignStmt(std::string n, std::string o, NodePtr v)
-        : name(std::move(n)), op(std::move(o)), value(std::move(v)) {}
+    NodePtr index;
+    AssignStmt(std::string n, std::string o, NodePtr v, NodePtr idx)
+        : name(std::move(n)), op(std::move(o)), value(std::move(v)), index(std::move(idx)) {}
     void print(int indent) const override{
+        if (index){
+            pad(indent + 1); std::cout << "Index\n";
+            index->print(indent + 2);
+        }
        pad(indent); std::cout << "Assign: " << name << " (" << op << ")\n";
         value->print(indent + 1);
     }
@@ -154,8 +175,13 @@ struct AssignStmt : Node {
 
 struct ReadStmt : Node {
     std::string name;
-    explicit ReadStmt(std::string n) : name(std::move(n)) {}
+    NodePtr index;
+    ReadStmt(std::string n, NodePtr idx) : name(std::move(n)), index(std::move(idx)) {}
     void print(int indent) const override{
+        if (index){
+            pad(indent + 1); std::cout << "Index\n";
+            index->print(indent + 2);
+        }
         pad(indent); std::cout << "Read " << name << "\n";
     }
 };
@@ -165,6 +191,14 @@ struct Block : Node {
     void print(int indent) const override{
         pad(indent); std::cout << "Block\n";
         for (const auto& s : statements) s->print(indent + 1);
+    }
+};
+
+struct ArrayInit : Node {
+    std::vector<NodePtr> items;
+    void print(int indent) const override {
+        pad(indent); std::cout << "ArrayValues\n";
+        for (const auto& i : items) i->print(indent + 1);
     }
 };
 

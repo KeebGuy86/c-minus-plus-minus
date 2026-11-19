@@ -1,26 +1,11 @@
 import <io>
 
 func main(){
-    Int x = 6
-    Int y = 3
-    Int z
-
-    Char op
-
-    Type["Enter Operator: "]
-    Read[op]
-
-    switch(op){
-        case '+':
-            z = x + y
-            Type["The sum is " z], \n
-        case '-':
-            z = x - y
-            Type["The difference is " z], \n
-        case '*', 'x':
-            z = x * y
-            Type["The product is " z], \n
-        default:
-            Type["Unknown Operator!"], \n
-    }
+    int num[5]
+    int a[3], b, c[2]
+    int i = 0
+    num[0] <- 7
+    num[i + 1] = num[0] * 2
+    Read[num[i]]
+    Type["first is" (num[0] + 1)], \n
 }
