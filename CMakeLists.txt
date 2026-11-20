@@ -12,5 +12,6 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(cminus "C-+-.cpp"
         lexer.h
         ast.h
-        parser.h)
+        parser.h
+        codegen.h)
 target_compile_options(cminus PRIVATE -Wall -Wextra)

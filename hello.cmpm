@@ -1,11 +1,11 @@
-import <io>
-
 func main(){
-    int num[5]
-    int a[3], b, c[2]
-    int i = 0
-    num[0] <- 7
-    num[i + 1] = num[0] * 2
-    Read[num[i]]
-    Type["first is" (num[0] + 1)], \n
+    int x = 5
+    int a, b = 7
+    int c
+    x = 9
+    x <- x
+    Type["x is " x], \n
+    Type["a and b are " a " and " b], \n
+    Type["c is " c], \n
+    return 0
 }

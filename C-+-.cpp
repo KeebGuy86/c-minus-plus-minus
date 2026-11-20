@@ -2,6 +2,8 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <filesystem>
+#include "codegen.h"
 #include "token.h"
 #include "lexer.h"
 #include "parser.h"
@@ -50,6 +52,18 @@ int main(int argc, char* argv[]) {
             Parser parser(tokens);
             auto program = parser.parseProgram();
             program->print(0);
+            // Stage 3: the code generator turns the tree into assembly text,
+            // and we save it next to the input file with the extension .asm
+            try {
+                CodeGen gen;
+                string asmText = gen.generate(*program);
+                string outPath = filesystem::path(inputFile).replace_extension(".asm").string();
+                ofstream outFile(outPath);
+                outFile << asmText;
+                cout << "Wrote " << outPath << "\n";
+            } catch (const exception& e) {
+                cout << "Code generation error: " << e.what() << "\n";
+            }
         } catch (const exception& e) {
             cout << "Syntax error at " << e.what() << "\n";
         }
