@@ -1,11 +1,31 @@
 func main(){
-    int x = 5
-    int a, b = 7
-    int c
-    x = 9
-    x <- x
-    Type["x is " x], \n
-    Type["a and b are " a " and " b], \n
-    Type["c is " c], \n
-    return 0
+    int i = 1
+    int sum = 0
+    while (i <= 5) {
+        sum <- sum + i
+        i <- i + 1
+    }
+    Type["sum of 1 to 5 = " sum], \n
+
+    int n = 7
+    if (n % 2 == 0) {
+        Type[n " is even"], \n
+    } else if (n > 5 && n < 10) {
+        Type[n " is odd and between 6 and 9"], \n
+    } else {
+        Type[n " is odd and small or big"], \n
+    }
+
+    bool b = n > 3 || n == 0
+    Type["b is " b], \n
+    if (n == 7) Type["seven"], \n
+    if (n != 7) Type["not seven"], \n
+    int k = 0
+    while (k < 3) {
+        int sq = k * k
+        Type[k " squared is " sq], \n
+        k <- k + 1
+    }
+    bool t = true
+    Type["t is " t], \n
 }
