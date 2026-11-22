@@ -219,6 +219,10 @@ private:
             }
             init = parseInitializer();
         }
+        if (check(TokenKind::Comma)) {
+            error("only one '= value' is allowed, at the end, and it applies to all the names");
+        }
+        match(TokenKind::Semicolon);            // <-- this line must be here
         return std::make_unique<VarDecl>(typeName, std::move(names), std::move(init));
     }
 

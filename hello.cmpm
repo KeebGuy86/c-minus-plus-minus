@@ -1,31 +1,62 @@
+import <io>
+
+import <io>
+
 func main(){
-    int i = 1
-    int sum = 0
-    while (i <= 5) {
-        sum <- sum + i
-        i <- i + 1
-    }
-    Type["sum of 1 to 5 = " sum], \n
+    int a = 2
+    int b = 3
+    add(a, b)
+    int r = twice(a + 1)
+    Type["twice(3) = " r], \n
+    Type["max is " max(7, 4) " and " max(2, 9)], \n
+    Type["5! = " fact(5)], \n
+    Type["fib(10) = " fib(10)], \n
+    Type["isEven(6) = " isEven(6) " isEven(7) = " isEven(7)], \n
+    Type["letter: " letter(1) letter(2)], \n
+    Type["nested: " add3(add3(1, 2, 3), add3(4, 5, 6), 7)], \n
+    greet()
+    return 0
+}
 
-    int n = 7
-    if (n % 2 == 0) {
-        Type[n " is even"], \n
-    } else if (n > 5 && n < 10) {
-        Type[n " is odd and between 6 and 9"], \n
-    } else {
-        Type[n " is odd and small or big"], \n
-    }
+func add(int a, int b){
+    int result
+    result <- a + b
+    Type["add says " result], \n
+}
 
-    bool b = n > 3 || n == 0
-    Type["b is " b], \n
-    if (n == 7) Type["seven"], \n
-    if (n != 7) Type["not seven"], \n
-    int k = 0
-    while (k < 3) {
-        int sq = k * k
-        Type[k " squared is " sq], \n
-        k <- k + 1
-    }
-    bool t = true
-    Type["t is " t], \n
+func twice(int n) -> int {
+    return n * 2
+}
+
+func max(int x, int y) -> int {
+    if (x > y) return x
+    return y
+}
+
+func fact(int n) -> int {
+    if (n <= 1) return 1
+    return n * fact(n - 1)
+}
+
+func fib(int n) -> int {
+    if (n < 2) return n
+    return fib(n - 1) + fib(n - 2)
+}
+
+func isEven(int n) -> bool {
+    return n % 2 == 0
+}
+
+func letter(int k) -> char {
+    if (k == 1) return 'o'
+    return 'k'
+}
+
+func add3(int a, int b, int c) -> int {
+    return a + b + c
+}
+
+func greet(){
+    Type["hello from a procedure"], \n
+    return
 }

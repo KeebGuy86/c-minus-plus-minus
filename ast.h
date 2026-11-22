@@ -233,8 +233,8 @@ struct WhileLoop : Node {
 };
 
 struct ForLoop : Node {
-    NodePtr condition, init, update, body;
-    ForLoop(NodePtr cond, NodePtr i, NodePtr upd, NodePtr b) : condition(std::move(cond)), init(std::move(i)), update(std::move(upd)), body(std::move(b)) {}
+    NodePtr init, condition, update, body;
+    ForLoop(NodePtr i, NodePtr cond, NodePtr upd, NodePtr b) : init(std::move(i)), condition(std::move(cond)), update(std::move(upd)), body(std::move(b)) {}
     void print(int indent) const override{
         pad(indent); std::cout << "For\n";
         //only print the parts that were actually written

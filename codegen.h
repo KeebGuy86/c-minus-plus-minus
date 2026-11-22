@@ -4,6 +4,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
+#include <vector>
 #include "ast.h"
 
 // The code generator walks the tree (like print() does) but writes ASSEMBLY text
@@ -22,8 +24,20 @@ class CodeGen
 public:
     // Turns a whole program tree into the text of an assembly file.
     std::string generate(const Program& program) {
-        // Only functions produce code. An import needs no instructions for now,
-        // because printing comes from the C library (printf).
+        // First pass: note down every function (its parameters and return type).
+        for (const auto& item : program.items) {
+            if (auto* fn = dynamic_cast<const FunctionDecl*>(item.get())) {
+                if (funcs.count(fn->name)) {
+                    throw std::runtime_error("the function '" + fn->name + "' is defined twice");
+                }
+                funcs[fn->name] = FuncInfo{fn->params, fn->returnType};
+            }
+        }
+        if (!funcs.count("main")) {
+            throw std::runtime_error("the program needs a function called main");
+        }
+
+        // Second pass: generate the code for each function.
         for (const auto& item : program.items) {
             if (auto* fn = dynamic_cast<const FunctionDecl*>(item.get())) {
                 genFunction(*fn);
@@ -58,12 +72,35 @@ private:
     // What we remember about each variable of the current function.
     struct Variable {
         std::string type;       // "int" ...
-        int offset;             // how many bytes below RBP its slot starts (slot is at [rbp-offset])
+        int offset;          // how many bytes below RBP its slot starts (slot is at [rbp-offset])
+        int count = 0;
     };
     std::map<std::string, Variable> vars;   // name -> variable, for the current function
-    int localBytes = 0;                     // how much stack the variables use so far
+    int localBytes = 0;           // how much stack the variables use so far
+
+    struct LoopLabels{
+        std::string next;
+        std::string end;
+    };
+    std::vector<LoopLabels> loops;
+
+    // What we know about each function, collected BEFORE any code is generated, so a
+    // function can be called from code that comes earlier in the file than its definition.
+    struct FuncInfo {
+        std::vector<Param> params;
+        std::string returnType;     // "" for a procedure (returns nothing)
+    };
+    std::map<std::string, FuncInfo> funcs;
+    const FunctionDecl* currentFn = nullptr;    // the function we are generating right now
+
+    // Windows passes the first four arguments in these registers, in this order.
+    static constexpr const char* argRegs[4] = {"ecx", "edx", "r8d", "r9d"};
 
     // ---------- Functions ----------
+
+    static std::string funcLabel(const std::string& name) {
+        return name == "main" ? "main" : "fn_" + name;
+    }
 
     void genFunction(const FunctionDecl& fn) {
         // Each function starts with no variables and an empty body.
@@ -71,6 +108,24 @@ private:
         localBytes = 0;
         body.str("");
         body.clear();
+        currentFn = &fn;
+
+        if (fn.params.size() > 4) {
+            throw std::runtime_error("the function '" + fn.name +
+                                     "' has more than 4 parameters, which is not supported yet");
+        }
+
+        // Parameters arrive in registers. We copy each one into a slot of its own, so
+        // from then on it behaves like any other variable of the function.
+        for (size_t i = 0; i < fn.params.size(); i++) {
+            const Param& p = fn.params[i];
+            if (p.typeName != "int" && p.typeName != "char" && p.typeName != "bool") {
+                throw std::runtime_error("only int, char and bool parameters are supported so far");
+            }
+            allocate(p.name, p.typeName);
+            body << "    mov dword " << slotOf(lookup(p.name)) << ", " << argRegs[i]
+                 << "      ; parameter " << p.name << "\n";
+        }
 
         // Generate the body FIRST, into 'body'. We can't write the start of the
         // function yet, because it needs to know how much stack the variables use,
@@ -84,7 +139,7 @@ private:
         int frame = localBytes + 32;
         frame = (frame + 15) / 16 * 16;
 
-        text << fn.name << ":\n";
+        text << funcLabel(fn.name) << ":\n";
         text << "    push rbp                 ; save the caller's frame pointer\n";
         text << "    mov rbp, rsp             ; our frame starts here\n";
         text << "    sub rsp, " << frame << "              ; room for our variables and for the calls we make\n";
@@ -103,12 +158,18 @@ private:
 
     // Gives a new variable a slot on the stack. Every slot is 8 bytes, which is
     // plenty for an int and keeps everything lined up.
-    void allocate(const std::string& name, const std::string& type) {
+    // Gives a new variable a slot on the stack. Every slot is 8 bytes, which is
+    // plenty for an int and keeps everything lined up.
+    void allocate(const std::string& name, const std::string& type, int count = 0) {
         if (vars.count(name)) {
             throw std::runtime_error("variable '" + name + "' is already declared");
         }
-        localBytes += 8;
-        vars[name] = Variable{type, localBytes};
+        // An array takes one slot per element, one after another. 'offset' is the
+        // distance of its FIRST element below RBP; the next elements sit at higher
+        // addresses. Elements are numbered from 1, so element n is at (RBP - offset + (n-1)*8).
+        int slots = (count > 0) ? count : 1;
+        localBytes += 8 * slots;
+        vars[name] = Variable{type, localBytes, count};
     }
 
     int newTemp(){
@@ -136,6 +197,28 @@ private:
         return "[rbp-" + std::to_string(v.offset) + "]";
     }
 
+    // The slot of element number 'n' of an array, when 'n' is a known number: "[rbp-24]".
+    // Elements are numbered from 1, so element 1 is the FIRST slot.
+    static std::string elementSlot(const Variable& arr, int n) {
+        return "[rbp-" + std::to_string(arr.offset - (n - 1) * 8) + "]";
+    }
+
+    // Works out WHICH element an index expression means, and returns the assembly text
+    // for that element's memory, like "[rbp + rax*8 - 48]".
+    // The index ends up in RAX, so the caller must use the returned text before
+    // anything else changes RAX.
+    std::string genElement(const std::string& name, const Node& index) {
+        const Variable& arr = lookup(name);
+        if (arr.count == 0) {
+            throw std::runtime_error("'" + name + "' is not an array");
+        }
+        genExpr(index);                                  // EAX = the index
+        body << "    movsxd rax, eax          ; widen the index to 64 bits\n";
+        // The index counts from 1, so index 1 must land on the first slot: the extra
+        // "+ 8" in the subtraction is that step back.
+        return "[rbp + rax*8 - " + std::to_string(arr.offset + 8) + "]";
+    }
+
     // ---------- Statements ----------
 
     // dynamic_cast asks "is this node really a TypeStmt?" and gives back a pointer
@@ -150,42 +233,95 @@ private:
         if (auto* b = dynamic_cast<const Block*>(&node))      { genBlock(*b);  return; }
         if (auto* i = dynamic_cast<const IfStmt*>(&node))     { genIf(*i);     return; }
         if (auto* w = dynamic_cast<const WhileLoop*>(&node))  { genWhile(*w);  return; }
-        throw std::runtime_error("this kind of statement is not supported yet");
+        if (auto* f = dynamic_cast<const ForLoop*>(&node))    { genFor(*f);    return; }
+        if (dynamic_cast<const BreakStmt*>(&node))            { genBreak();    return; }
+        if (dynamic_cast<const ContinueStmt*>(&node))         { genContinue(); return; }
+        if (auto* c = dynamic_cast<const CallExpr*>(&node))    { genCall(*c, false); return;}
+        throw std::runtime_error(std::string("this kind of statement is not supported yet: ") +
+                         typeid(node).name());
     }
 
-    // int x = 5       int a, b = 7       int c
+        // int x = 5       int a, b = 7       int c       int nums[5] = [1, 2, 3]
     void genVarDecl(const VarDecl& decl) {
         if (decl.typeName != "int" && decl.typeName != "char" && decl.typeName != "bool") {
             throw std::runtime_error("only int, char and bool variables are supported so far");
         }
-        for (const Declname& n : decl.names) {
-            if (!n.size.empty()) throw std::runtime_error("arrays are not supported yet");
-        }
-        if (dynamic_cast<const ArrayInit*>(decl.init.get())) {
-            throw std::runtime_error("arrays are not supported yet");
-        }
 
-        if (decl.init) {
+        // A single starting value (not a [list]) is worked out ONCE, up front, into EAX.
+        // We do this BEFORE declaring the names, so "int x = x + 1" is an error
+        // instead of reading a variable that doesn't exist yet.
+        const ArrayInit* list = dynamic_cast<const ArrayInit*>(decl.init.get());
+        if (decl.init && !list) {
             genExpr(*decl.init);
         }
 
         for (const Declname& n : decl.names) {
-            allocate(n.name, decl.typeName);
-            // With no starting value, a new variable starts at 0.
-            body << "    mov dword " << slotOf(lookup(n.name)) << ", "
-                 << (decl.init ? "eax" : "0") << "      ; " << n.name << "\n";
+            if (n.size.empty()) {
+                // ----- a plain variable -----
+                allocate(n.name, decl.typeName);
+                // With no starting value, a new variable starts at 0.
+                body << "    mov dword " << slotOf(lookup(n.name)) << ", "
+                     << (decl.init ? "eax" : "0") << "      ; " << n.name << "\n";
+                continue;
+            }
+
+            // ----- an array -----
+            int count = std::stoi(n.size);
+            if (count <= 0) {
+                throw std::runtime_error("the array '" + n.name + "' needs a size of at least 1");
+            }
+            allocate(n.name, decl.typeName, count);
+            const Variable& arr = lookup(n.name);
+
+            // Every element starts at 0. A small loop clears them: ECX counts down from
+            // 'count' to 1, and each turn clears element number ECX.
+            std::string loop = newLabel();
+            body << "    mov ecx, " << count << "              ; clear the array " << n.name << "\n";
+            body << loop << ":\n";
+            body << "    mov dword [rbp + rcx*8 - " << (arr.offset + 8) << "], 0\n";
+            body << "    sub ecx, 1\n";
+            body << "    jnz " << loop << "\n";
+
+            if (list) {
+                // int nums[5] = [10, 20, 30]: element 1 gets 10, element 2 gets 20, ...
+                if (static_cast<int>(list->items.size()) > count) {
+                    throw std::runtime_error("more starting values than the array '" + n.name +
+                                             "' has room for");
+                }
+                for (size_t i = 0; i < list->items.size(); i++) {
+                    genExpr(*list->items[i]);
+                    body << "    mov dword " << elementSlot(arr, static_cast<int>(i) + 1)
+                         << ", eax      ; " << n.name << "[" << i + 1 << "]\n";
+                }
+            } else if (decl.init) {
+                // A single value, as in "int big[100] <- 5": it goes in the element named
+                // in the brackets, here element 100. (The others are already 0 from the loop.)
+                body << "    mov dword " << elementSlot(arr, count) << ", eax      ; " << n.name << "[" << count << "]\n";
+            }
         }
     }
 
-    // x = 5       x <- x + 1
+    // x = 5       x <- x + 1       nums[i] = 7
     // Both arrows do the same thing here.
     void genAssign(const AssignStmt& stmt) {
-        if (stmt.index) {
-            throw std::runtime_error("array elements are not supported yet");
-        }
         const Variable& v = lookup(stmt.name);      // fails if the variable doesn't exist
-        genExpr(*stmt.value);                       // the new value ends up in EAX
-        body << "    mov dword " << slotOf(v) << ", eax      ; " << stmt.name << " = ...\n";
+
+        if (stmt.index) {
+            // An array element. Order matters: computing the index uses EAX, so we
+            // first work out the new value and keep it safe in a temporary slot.
+            genExpr(*stmt.value);
+            int temp = newTemp();
+            body << "    mov dword [rbp-" << temp << "], eax      ; save the new value\n";
+            std::string target = genElement(stmt.name, *stmt.index);    // RAX = the index
+            body << "    mov ecx, dword [rbp-" << temp << "]      ; ECX = the new value again\n";
+            body << "    mov dword " << target << ", ecx      ; " << stmt.name << "[...] = ...\n";
+        } else {
+            if (v.count > 0) {
+                throw std::runtime_error("'" + stmt.name + "' is an array: use " + stmt.name + "[index]");
+            }
+            genExpr(*stmt.value);                   // the new value ends up in EAX
+            body << "    mov dword " << slotOf(v) << ", eax      ; " << stmt.name << " = ...\n";
+        }
     }
 
     // { statement statement ... }
@@ -221,7 +357,7 @@ private:
         }
     }
 
-    // while (condition) { ... }
+        // while (condition) { ... }
     // The idea: test at the top; if false, jump past the loop; at the bottom, jump back up.
     void genWhile(const WhileLoop& stmt) {
         std::string top = newLabel();
@@ -231,33 +367,95 @@ private:
         genExpr(*stmt.condition);
         body << "    cmp eax, 0\n";
         body << "    je " << end << "      ; false: leave the loop\n";
+
+        loops.push_back({top, end});            // 'continue' goes to the top, 'break' to the end
         genStatement(*stmt.body);
+        loops.pop_back();
+
         body << "    jmp " << top << "      ; go round again\n";
         body << end << ":\n";
     }
 
-    // Read[x]      reads what the user types into the variable x
-    void genRead(const ReadStmt& stmt) {
-        if (stmt.index) {
-            throw std::runtime_error("array elements are not supported yet");
+    // for (init; condition; update) { ... }
+    // The idea: run init once; then repeat: test the condition, run the body, run the update.
+    void genFor(const ForLoop& stmt) {
+        // A variable declared in the header, as in "for (int i = 0; ...)", belongs to the
+        // loop only. We remember the variables that exist now and restore them afterwards.
+        auto saved = vars;
+
+        std::string top = newLabel();
+        std::string next = newLabel();          // where 'continue' lands: the update step
+        std::string end = newLabel();
+
+        if (stmt.init) {
+            genStatement(*stmt.init);           // runs once, before the loop starts
         }
+
+        body << top << ":\n";
+        if (stmt.condition) {                   // an empty condition means "always true"
+            genExpr(*stmt.condition);
+            body << "    cmp eax, 0\n";
+            body << "    je " << end << "      ; false: leave the loop\n";
+        }
+
+        loops.push_back({next, end});
+        genStatement(*stmt.body);
+        loops.pop_back();
+
+        body << next << ":\n";
+        if (stmt.update) {
+            genStatement(*stmt.update);
+        }
+        body << "    jmp " << top << "      ; go round again\n";
+        body << end << ":\n";
+
+        vars = saved;
+    }
+
+    // break      leaves the nearest loop
+    void genBreak() {
+        if (loops.empty()) {
+            throw std::runtime_error("'break' can only be used inside a loop");
+        }
+        body << "    jmp " << loops.back().end << "      ; break\n";
+    }
+
+    // continue   skips to the next turn of the nearest loop
+    void genContinue() {
+        if (loops.empty()) {
+            return;                             // outside a loop, 'continue' does nothing
+        }
+        body << "    jmp " << loops.back().next << "      ; continue\n";
+    }
+
+    // Read[x]      Read[nums[i]]      reads what the user types into a variable or element
+    void genRead(const ReadStmt& stmt) {
         const Variable& v = lookup(stmt.name);
-
-        if (v.type == "int") {
-            // scanf("%d", &x): RCX = the format, RDX = the ADDRESS of x's slot.
-            // 'lea' works out an address without reading what is stored there.
-            body << "    lea rdx, " << slotOf(v) << "      ; the address of " << stmt.name << "\n";
-            body << "    lea rcx, [rel fmt_d]\n";
-            body << "    call scanf\n";
-        } else if (v.type == "char") {
-
-            body << "    mov dword " << slotOf(v) << ", 0\n";
-            body << "    lea rdx, " << slotOf(v) << "      ; the address of " << stmt.name << "\n";
-            body << "    lea rcx, [rel fmt_in_c]\n";
-            body << "    call scanf\n";
-        } else {
+        if (v.type != "int" && v.type != "char") {
             throw std::runtime_error("Read only supports int and char variables so far");
         }
+
+        // 'target' is the assembly text for the memory we read into.
+        std::string target;
+        if (stmt.index) {
+            target = genElement(stmt.name, *stmt.index);     // like "[rbp + rax*8 - 48]"
+        } else {
+            if (v.count > 0) {
+                throw std::runtime_error("'" + stmt.name + "' is an array: use " + stmt.name + "[index]");
+            }
+            target = slotOf(v);
+        }
+
+        // scanf writes only ONE byte for a character, so for a char we clear the whole
+        // slot first. That way the other bytes are 0 and the slot holds the
+        // character's code as an ordinary number.
+        if (v.type == "char") {
+            body << "    mov dword " << target << ", 0\n";
+        }
+        // scanf("%d", &x): RCX = the format, RDX = the ADDRESS to write to.
+        body << "    lea rdx, " << target << "      ; the address of " << stmt.name << "\n";
+        body << "    lea rcx, [rel " << (v.type == "int" ? "fmt_d" : "fmt_in_c") << "]\n";
+        body << "    call scanf\n";
     }
 
     // Type["Hello" x], \n
@@ -288,11 +486,20 @@ private:
         }
     }
 
-    // return 0       return x
+    // return 0       return x       return   (nothing, for a procedure)
     void genReturn(const ReturnStmt& stmt) {
+        bool hasType = !currentFn->returnType.empty();      // declared with "-> type"?
         if (stmt.value) {
+            // main always returns an int, so it may return a value even without "->".
+            if (!hasType && currentFn->name != "main") {
+                throw std::runtime_error("the function '" + currentFn->name +
+                                         "' returns nothing, so 'return' can't have a value");
+            }
             genExpr(*stmt.value);                   // the return value ends up in EAX, where callers look
         } else {
+            if (hasType) {
+                throw std::runtime_error("the function '" + currentFn->name + "' must return a value");
+            }
             body << "    xor eax, eax\n";
         }
         body << "    jmp .exit\n";
@@ -305,6 +512,11 @@ private:
         if (dynamic_cast<const StringLit*>(&node)) return "string";
         if (dynamic_cast<const CharLit*>(&node))   return "char";
         if (auto* v = dynamic_cast<const NameExpr*>(&node)) return lookup(v->name).type;
+        if (auto* ix = dynamic_cast<const IndexExpr*>(&node)) return lookup(ix->name).type;
+        if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
+            auto it = funcs.find(c->name);
+            if (it != funcs.end() && !it->second.returnType.empty()) return it->second.returnType;
+        }
         return "int";           // numbers and math
     }
 
@@ -324,12 +536,24 @@ private:
                  << "             ; '" << printable(std::string(1, c->value)) << "'\n";
             return;
         }
+        if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
+            genCall(*c, true);                      // the result ends up in EAX
+            return;
+        }
+        if (auto* ix = dynamic_cast<const IndexExpr*>(&node)) {
+            std::string element = genElement(ix->name, *ix->index);
+            body << "    mov eax, dword " << element << "      ; read " << ix->name << "[...]\n";
+            return;
+        }
         if (auto* v = dynamic_cast<const NameExpr*>(&node)) {
             const Variable& var = lookup(v->name);
             if (var.type != "int" && var.type != "char" && var.type != "bool") {
                 throw std::runtime_error("only int, char and bool variables are supported so far");
             }
             body << "    mov eax, dword " << slotOf(var) << "      ; read " << v->name << "\n";
+            if (var.count > 0) {
+                throw std::runtime_error("'" + v->name + "' is an array: use " + v->name + "[index]");
+            }
             return;
         }
         if (auto* b = dynamic_cast<const BinaryExpr*>(&node)){
@@ -337,6 +561,40 @@ private:
             return;
         }
         throw std::runtime_error("this kind of expression is not supported yet");
+    }
+
+    // add(a, b)      a call. 'wantValue' is true when the result is used (as in x = add(1, 2)).
+    void genCall(const CallExpr& call, bool wantValue) {
+        auto it = funcs.find(call.name);
+        if (it == funcs.end()) {
+            throw std::runtime_error("unknown function '" + call.name + "'");
+        }
+        const FuncInfo& f = it->second;
+        if (call.args.size() != f.params.size()) {
+            throw std::runtime_error("the function '" + call.name + "' takes " +
+                                     std::to_string(f.params.size()) + " argument(s) but got " +
+                                     std::to_string(call.args.size()));
+        }
+        if (wantValue && f.returnType.empty()) {
+            throw std::runtime_error("the function '" + call.name +
+                                     "' returns nothing, so it can't be used as a value");
+        }
+
+        // Step 1: work out every argument and park it in a temporary slot of its own.
+        std::vector<int> temps;
+        for (const auto& arg : call.args) {
+            genExpr(*arg);
+            int temp = newTemp();
+            body << "    mov dword [rbp-" << temp << "], eax      ; an argument for " << call.name << "\n";
+            temps.push_back(temp);
+        }
+        // Step 2: with every argument ready, load them into the argument registers.
+        for (size_t i = 0; i < temps.size(); i++) {
+            body << "    mov " << argRegs[i] << ", dword [rbp-" << temps[i] << "]\n";
+        }
+        // Step 3: the call. Our frame already keeps RSP aligned and has the 32 bytes
+        // of shadow space. The function's result comes back in EAX.
+        body << "    call " << funcLabel(call.name) << "\n";
     }
 
     void genBinary(const BinaryExpr& expr){
