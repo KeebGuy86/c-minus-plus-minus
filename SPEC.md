@@ -119,3 +119,12 @@ func main(){
 Source text goes through the lexer (tokens), the parser (a tree), and the code generator (x86-64 assembly for NASM on Windows, using `printf` and `scanf` from the C library). NASM and the MinGW `gcc` turn that into a program.
 
 Code generator status: Hello World, `int` / `char` / `bool` variables, assignment, `+ - * / %`, comparisons, `&&` and `||`, `Read`, `if` / `else` and `while`, with arrays added next. Still to do: functions, `switch`, `for`, `break` / `continue`, the ternary, `string` variables and `deci`.
+
+## Strings
+
+- **Decided:** a `string` holds up to 255 characters. Longer text is cut off.
+- **Decided:** assigning a string copies its characters, so two strings never share memory. Passing a string to a function copies it too, so the function can't change the caller's string. This settles the copy-or-move question for strings.
+- **Decided:** string variables, arrays of strings (`string names[3]`), string parameters and `-> string` return types all work.
+- **Decided:** strings can be compared with `==` and `!=`. They can't be ordered, added or used as numbers.
+- **Decided:** `Read[s]` reads one word (up to a space or Enter).
+- **Open:** joining strings (`+`), the length of a string, reading a whole line, and reaching the characters inside a string.

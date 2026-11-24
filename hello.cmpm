@@ -1,62 +1,74 @@
 import <io>
 
-import <io>
-
 func main(){
-    int a = 2
-    int b = 3
-    add(a, b)
-    int r = twice(a + 1)
-    Type["twice(3) = " r], \n
-    Type["max is " max(7, 4) " and " max(2, 9)], \n
-    Type["5! = " fact(5)], \n
-    Type["fib(10) = " fib(10)], \n
-    Type["isEven(6) = " isEven(6) " isEven(7) = " isEven(7)], \n
-    Type["letter: " letter(1) letter(2)], \n
-    Type["nested: " add3(add3(1, 2, 3), add3(4, 5, 6), 7)], \n
-    greet()
-    return 0
+    string name = "Saad"
+    string empty
+    string a, b = "same"
+    Type["name is " name], \n
+    Type["empty is [" empty "]"], \n
+    Type[a " " b], \n
+    string copy = name
+    name = "changed"
+    Type[copy " then " name], \n
+    copy <- name
+    Type[copy], \n
+    if (a == b) Type["a equals b"], \n
+    if (name != "Saad") Type["name is not Saad"], \n
+    string pct = "100% sure"
+    Type[pct], \n
+
+    string names[3] = ["ann", "bob"]
+    names[3] = "cat"
+    int i = 1
+    while (i <= 3) {
+        Type[i ": " names[i]], \n
+        i <- i + 1
+    }
+    string labels[2] <- "x"
+    Type["labels: [" labels[1] "] [" labels[2] "]"], \n
+    names[2] = names[1]
+    names[1] = "zed"
+    Type[names[1] " " names[2]], \n
+    if (names[2] == "ann") Type["names[2] is ann"], \n
+
+    Type[greeting("World")], \n
+    string g = greeting(name)
+    Type[g], \n
+    string t = "keep"
+    Type[shout(t) " / " t], \n
+    if (greeting("a") == greeting("a")) Type["same greeting"], \n
+    if (greeting("a") != greeting("b")) Type["different greeting"], \n
+    Type["same? " same(name, "changed") " " same(name, "x")], \n
+    show("from a procedure")
+    Type[pick(2) " " pick(3)], \n
+    show(pick(1))
+
+    string line
+    Read[line]
+    Type["you typed: " line], \n
+    Read[names[2]]
+    Type["names[2] now " names[2]], \n
 }
 
-func add(int a, int b){
-    int result
-    result <- a + b
-    Type["add says " result], \n
+func greeting(string who) -> string {
+    if (who == "World") return "Hello, World!"
+    return who
 }
 
-func twice(int n) -> int {
-    return n * 2
+func shout(string s) -> string {
+    s = "changed in callee"
+    return s
 }
 
-func max(int x, int y) -> int {
-    if (x > y) return x
-    return y
+func same(string a, string b) -> bool {
+    return a == b
 }
 
-func fact(int n) -> int {
-    if (n <= 1) return 1
-    return n * fact(n - 1)
+func show(string s){
+    Type["show: " s], \n
 }
 
-func fib(int n) -> int {
-    if (n < 2) return n
-    return fib(n - 1) + fib(n - 2)
-}
-
-func isEven(int n) -> bool {
-    return n % 2 == 0
-}
-
-func letter(int k) -> char {
-    if (k == 1) return 'o'
-    return 'k'
-}
-
-func add3(int a, int b, int c) -> int {
-    return a + b + c
-}
-
-func greet(){
-    Type["hello from a procedure"], \n
-    return
+func pick(int k) -> string {
+    string options[3] = ["one", "two", "three"]
+    return options[k]
 }

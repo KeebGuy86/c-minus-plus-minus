@@ -30,6 +30,11 @@ public:
                 if (funcs.count(fn->name)) {
                     throw std::runtime_error("the function '" + fn->name + "' is defined twice");
                 }
+                const std::string& rt = fn->returnType;
+                if (!rt.empty() && rt != "int" && rt != "char" && rt != "bool" && rt != "string") {
+                    throw std::runtime_error("the function '" + fn->name +
+                                             "' has a return type that is not supported yet: " + rt);
+                }
                 funcs[fn->name] = FuncInfo{fn->params, fn->returnType};
             }
         }
@@ -49,14 +54,19 @@ public:
         out << "default rel                  ; address things relative to the code\n";
         out << "global main                  ; the program starts at main\n";
         out << "extern printf                ; printf comes from the C library\n";
-        out << "extern scanf                 ; scanf reads what the user types\n\n";
+        out << "extern scanf                 ; scanf reads what the user types\n";
+        out << "extern strncpy               ; strncpy copies text\n";
+        out << "extern strcmp                ; strcmp compares two pieces of text\n\n";
         out << "section .data\n";
         out << "fmt_s  db \"%s\", 0            ; printf format: print a string\n";
         out << "fmt_d  db \"%d\", 0            ; printf format: print an int\n";
         out << "fmt_nl db 10, 0              ; printf format: just a newline (10)\n";
         out << "fmt_c  db \"%c\", 0            ; printf format: print a character\n";
         out << "fmt_in_c db \" %c\", 0         ; scanf format: read a character (the space skips a leftover Enter)\n";
+        out << "fmt_in_s db \"%255s\", 0       ; scanf format: read one word of up to 255 characters\n";
         out << data.str();
+        out << "\nsection .bss\n";
+        out << "retbuf resb 256              ; where a function leaves the string it returns\n";
         out << "\nsection .text\n";
         out << text.str();
         return out.str();
@@ -95,6 +105,7 @@ private:
 
     // Windows passes the first four arguments in these registers, in this order.
     static constexpr const char* argRegs[4] = {"ecx", "edx", "r8d", "r9d"};
+    static constexpr const char* argRegs64[4] = {"rcx", "rdx", "r8", "r9"};
 
     // ---------- Functions ----------
 
@@ -102,7 +113,7 @@ private:
         return name == "main" ? "main" : "fn_" + name;
     }
 
-    void genFunction(const FunctionDecl& fn) {
+       void genFunction(const FunctionDecl& fn) {
         // Each function starts with no variables and an empty body.
         vars.clear();
         localBytes = 0;
@@ -115,16 +126,38 @@ private:
                                      "' has more than 4 parameters, which is not supported yet");
         }
 
-        // Parameters arrive in registers. We copy each one into a slot of its own, so
-        // from then on it behaves like any other variable of the function.
+        // PHASE 1: save every incoming register straight away. A number arrives in 32 bit register
+        std::vector<int> pointerTemps(fn.params.size(), 0);
         for (size_t i = 0; i < fn.params.size(); i++) {
             const Param& p = fn.params[i];
-            if (p.typeName != "int" && p.typeName != "char" && p.typeName != "bool") {
-                throw std::runtime_error("only int, char and bool parameters are supported so far");
+            if (p.typeName != "int" && p.typeName != "char" && p.typeName != "bool" &&
+                p.typeName != "string") {
+                throw std::runtime_error("only int, char, bool and string parameters are supported so far");
             }
-            allocate(p.name, p.typeName);
-            body << "    mov dword " << slotOf(lookup(p.name)) << ", " << argRegs[i]
-                 << "      ; parameter " << p.name << "\n";
+            if (p.typeName == "string") {
+                pointerTemps[i] = newTemp();
+                body << "    mov qword [rbp-" << pointerTemps[i] << "], " << argRegs64[i]
+                     << "      ; where the caller's text for " << p.name << " is\n";
+            } else {
+                allocate(p.name, p.typeName);
+                body << "    mov dword " << slotOf(lookup(p.name)) << ", " << argRegs[i]
+                     << "      ; parameter " << p.name << "\n";
+            }
+        }
+
+        // PHASE 2: give each string parameter a buffer of its own and copy the caller's
+        // text into it. A string is always COPIED, so changing the parameter inside the
+        // function can never change the caller's string.
+        for (size_t i = 0; i < fn.params.size(); i++) {
+            const Param& p = fn.params[i];
+            if (p.typeName != "string") continue;
+            allocate(p.name, "string");
+            const Variable& v = lookup(p.name);
+            body << "    mov rdx, qword [rbp-" << pointerTemps[i] << "]\n";
+            body << "    lea rcx, " << slotOf(v) << "\n";
+            body << "    mov r8d, 255\n";
+            body << "    call strncpy\n";
+            body << "    mov byte [rbp-" << (v.offset - 255) << "], 0\n";
         }
 
         // Generate the body FIRST, into 'body'. We can't write the start of the
@@ -138,16 +171,33 @@ private:
         // rounded UP to a multiple of 16 so RSP stays aligned.
         int frame = localBytes + 32;
         frame = (frame + 15) / 16 * 16;
+        if (frame > 1000000) {
+            throw std::runtime_error("the function '" + fn.name + "' needs too much stack space");
+        }
 
         text << funcLabel(fn.name) << ":\n";
         text << "    push rbp                 ; save the caller's frame pointer\n";
         text << "    mov rbp, rsp             ; our frame starts here\n";
-        text << "    sub rsp, " << frame << "              ; room for our variables and for the calls we make\n";
+        // Windows grows the stack one 4096-byte page at a time, and a program must touch
+        // each new page in order. So a big frame is reserved one page at a time, touching
+        // each page as we go. (A small frame is just one 'sub'.)
+        for (int page = 0; page < frame / 4096; page++) {
+            text << "    sub rsp, 4096\n";
+            text << "    mov qword [rsp], 0       ; touch the new stack page\n";
+        }
+        if (frame % 4096 > 0) {
+            text << "    sub rsp, " << (frame % 4096) << "              ; room for our variables and for the calls we make\n";
+        }
         text << body.str();
 
-        // Falling off the end of a function returns 0. A 'return' statement
-        // jumps straight to .exit with its own value already in EAX.
-        text << "    xor eax, eax             ; default return value: 0\n";
+        // Falling off the end of a function returns a default: 0, or an empty string.
+        // A 'return' statement jumps straight to .exit with its own value already set.
+        if (fn.returnType == "string") {
+            text << "    mov byte [rel retbuf], 0 ; default return value: an empty string\n";
+            text << "    lea rax, [rel retbuf]\n";
+        } else {
+            text << "    xor eax, eax             ; default return value: 0\n";
+        }
         text << ".exit:\n";
         text << "    mov rsp, rbp             ; throw away our stack space\n";
         text << "    pop rbp                  ; restore the caller's frame pointer\n";
@@ -168,7 +218,7 @@ private:
         // distance of its FIRST element below RBP; the next elements sit at higher
         // addresses. Elements are numbered from 1, so element n is at (RBP - offset + (n-1)*8).
         int slots = (count > 0) ? count : 1;
-        localBytes += 8 * slots;
+        localBytes += (type == "string") ? 256 * slots : 8 * slots;
         vars[name] = Variable{type, localBytes, count};
     }
 
@@ -196,11 +246,15 @@ private:
     static std::string slotOf(const Variable& v) {
         return "[rbp-" + std::to_string(v.offset) + "]";
     }
-
-    // The slot of element number 'n' of an array, when 'n' is a known number: "[rbp-24]".
-    // Elements are numbered from 1, so element 1 is the FIRST slot.
     static std::string elementSlot(const Variable& arr, int n) {
-        return "[rbp-" + std::to_string(arr.offset - (n - 1) * 8) + "]";
+        return "[rbp-" + std::to_string(elementOffset(arr, n)) + "]";
+    }
+
+    // How far below RBP element number 'n' starts. Elements are 8 bytes each,
+    // except in an array of strings, where each element is a 256-byte buffer.
+    static int elementOffset(const Variable& arr, int n) {
+        int stride = (arr.type == "string") ? 256 : 8;
+        return arr.offset - (n - 1) * stride;
     }
 
     // Works out WHICH element an index expression means, and returns the assembly text
@@ -211,6 +265,9 @@ private:
         const Variable& arr = lookup(name);
         if (arr.count == 0) {
             throw std::runtime_error("'" + name + "' is not an array");
+        }
+        if (arr.type == "string"){
+            throw std::runtime_error("'" + name + "' holds strings, which can't be used as numbers");
         }
         genExpr(index);                                  // EAX = the index
         body << "    movsxd rax, eax          ; widen the index to 64 bits\n";
@@ -243,6 +300,10 @@ private:
 
         // int x = 5       int a, b = 7       int c       int nums[5] = [1, 2, 3]
     void genVarDecl(const VarDecl& decl) {
+        if (decl.typeName == "string") {
+            genStringDecl(decl);
+            return;
+        }
         if (decl.typeName != "int" && decl.typeName != "char" && decl.typeName != "bool") {
             throw std::runtime_error("only int, char and bool variables are supported so far");
         }
@@ -305,6 +366,25 @@ private:
     // Both arrows do the same thing here.
     void genAssign(const AssignStmt& stmt) {
         const Variable& v = lookup(stmt.name);      // fails if the variable doesn't exist
+
+        if (v.type == "string") {
+            if (exprType(*stmt.value) != "string") {
+                throw std::runtime_error("a string can only be given text or another string");
+            }
+            if (stmt.index) {
+                genStringCopyToElement(stmt.name, *stmt.index, *stmt.value);
+            } else {
+                if (v.count > 0) {
+                    throw std::runtime_error("'" + stmt.name + "' is an array: use " + stmt.name + "[index]");
+                }
+                // "s = s" would copy a string onto itself, which strncpy does not allow,
+                // so there is nothing to do.
+                auto* other = dynamic_cast<const NameExpr*>(stmt.value.get());
+                if (other && other->name == stmt.name) return;
+                genStringCopyAt(v.offset, *stmt.value);
+            }
+            return;
+        }
 
         if (stmt.index) {
             // An array element. Order matters: computing the index uses EAX, so we
@@ -431,6 +511,23 @@ private:
     // Read[x]      Read[nums[i]]      reads what the user types into a variable or element
     void genRead(const ReadStmt& stmt) {
         const Variable& v = lookup(stmt.name);
+        if (v.type == "string") {
+            // scanf("%255s", buffer): reads ONE word (up to a space or Enter), at most 255 characters.
+            if (stmt.index) {
+                genStringElementAddress(stmt.name, *stmt.index);   // RAX = that element's buffer
+                body << "    mov byte [rax], 0        ; in case nothing is typed\n";
+                body << "    mov rdx, rax\n";
+            } else {
+                if (v.count > 0) {
+                    throw std::runtime_error("'" + stmt.name + "' is an array: use " + stmt.name + "[index]");
+                }
+                body << "    mov byte " << slotOf(v) << ", 0      ; in case nothing is typed\n";
+                body << "    lea rdx, " << slotOf(v) << "      ; the address of " << stmt.name << "\n";
+            }
+            body << "    lea rcx, [rel fmt_in_s]\n";
+            body << "    call scanf\n";
+            return;
+        }
         if (v.type != "int" && v.type != "char") {
             throw std::runtime_error("Read only supports int and char variables so far");
         }
@@ -461,13 +558,13 @@ private:
     // Type["Hello" x], \n
     void genType(const TypeStmt& stmt) {
         for (const auto& item : stmt.items) {
-            if (auto* s = dynamic_cast<const StringLit*>(item.get())) {
-                std::string label = addString(s->value);
+            if (exprType(*item) == "string") {
+                genStringAddress(*item);            // RAX = where the characters are
                 // printf("%s", text): RCX = the format, RDX = the text to print.
                 // We always print through "%s" so a '%' inside the text is never
                 // mistaken for a format code.
+                body << "    mov rdx, rax\n";
                 body << "    lea rcx, [rel fmt_s]\n";
-                body << "    lea rdx, [rel " << label << "]\n";
                 body << "    call printf\n";
             } else {
                 // Any other item is a number: compute it into EAX, then
@@ -486,7 +583,7 @@ private:
         }
     }
 
-    // return 0       return x       return   (nothing, for a procedure)
+        // return 0       return x       return   (nothing, for a procedure)
     void genReturn(const ReturnStmt& stmt) {
         bool hasType = !currentFn->returnType.empty();      // declared with "-> type"?
         if (stmt.value) {
@@ -495,7 +592,27 @@ private:
                 throw std::runtime_error("the function '" + currentFn->name +
                                          "' returns nothing, so 'return' can't have a value");
             }
-            genExpr(*stmt.value);                   // the return value ends up in EAX, where callers look
+            if (currentFn->returnType == "string") {
+                if (exprType(*stmt.value) != "string") {
+                    throw std::runtime_error("the function '" + currentFn->name +
+                                             "' returns a string, so 'return' needs text or a string");
+                }
+                genStringAddress(*stmt.value);      // RAX = the characters to return
+                // This function's own buffers disappear when it ends, so the text is
+                // copied to one shared buffer, 'retbuf', where the caller picks it up.
+                body << "    mov rdx, rax\n";
+                body << "    lea rcx, [rel retbuf]\n";
+                body << "    mov r8d, 255\n";
+                body << "    call strncpy\n";
+                body << "    mov byte [rel retbuf + 255], 0\n";
+                body << "    lea rax, [rel retbuf]      ; the caller reads the result from here\n";
+            } else {
+                if (exprType(*stmt.value) == "string") {
+                    throw std::runtime_error("the function '" + currentFn->name +
+                                             "' doesn't return a string");
+                }
+                genExpr(*stmt.value);               // the return value ends up in EAX, where callers look
+            }
         } else {
             if (hasType) {
                 throw std::runtime_error("the function '" + currentFn->name + "' must return a value");
@@ -537,7 +654,11 @@ private:
             return;
         }
         if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
-            genCall(*c, true);                      // the result ends up in EAX
+            auto fit = funcs.find(c->name);
+            if (fit != funcs.end() && fit->second.returnType == "string"){
+                throw std::runtime_error("the function '" + c->name + "' returns a string, which cant be used as a number.");
+            }
+            genCall(*c, true);
             return;
         }
         if (auto* ix = dynamic_cast<const IndexExpr*>(&node)) {
@@ -563,7 +684,7 @@ private:
         throw std::runtime_error("this kind of expression is not supported yet");
     }
 
-    // add(a, b)      a call. 'wantValue' is true when the result is used (as in x = add(1, 2)).
+        // add(a, b)      a call. 'wantValue' is true when the result is used (as in x = add(1, 2)).
     void genCall(const CallExpr& call, bool wantValue) {
         auto it = funcs.find(call.name);
         if (it == funcs.end()) {
@@ -580,20 +701,35 @@ private:
                                      "' returns nothing, so it can't be used as a value");
         }
 
-        // Step 1: work out every argument and park it in a temporary slot of its own.
+       //string is noted as the address of its location
         std::vector<int> temps;
-        for (const auto& arg : call.args) {
-            genExpr(*arg);
-            int temp = newTemp();
-            body << "    mov dword [rbp-" << temp << "], eax      ; an argument for " << call.name << "\n";
-            temps.push_back(temp);
+        for (size_t i = 0; i < call.args.size(); i++) {
+            bool wantsString = (f.params[i].typeName == "string");
+            bool isString = (exprType(*call.args[i]) == "string");
+            if (wantsString != isString) {
+                throw std::runtime_error("argument " + std::to_string(i + 1) + " of '" + call.name +
+                                         "' should be " + (wantsString ? "a string" : "a number"));
+            }
+            if (wantsString) {
+                genStringAddress(*call.args[i]);
+                int temp = newTemp();
+                body << "    mov qword [rbp-" << temp << "], rax      ; an argument for " << call.name << "\n";
+                temps.push_back(temp);
+            } else {
+                genExpr(*call.args[i]);
+                int temp = newTemp();
+                body << "    mov dword [rbp-" << temp << "], eax      ; an argument for " << call.name << "\n";
+                temps.push_back(temp);
+            }
         }
-        // Step 2: with every argument ready, load them into the argument registers.
+        // load arguments in their registers
         for (size_t i = 0; i < temps.size(); i++) {
-            body << "    mov " << argRegs[i] << ", dword [rbp-" << temps[i] << "]\n";
+            if (f.params[i].typeName == "string") {
+                body << "    mov " << argRegs64[i] << ", qword [rbp-" << temps[i] << "]\n";
+            } else {
+                body << "    mov " << argRegs[i] << ", dword [rbp-" << temps[i] << "]\n";
+            }
         }
-        // Step 3: the call. Our frame already keeps RSP aligned and has the 32 bytes
-        // of shadow space. The function's result comes back in EAX.
         body << "    call " << funcLabel(call.name) << "\n";
     }
 
@@ -603,6 +739,13 @@ private:
         // left side already decides the answer, so they get their own function.
         if (op == "&&" || op == "||") {
             genLogic(expr);
+            return;
+        }
+        if (exprType(*expr.left) == "string" || exprType(*expr.right) == "string") {
+            if ((op != "==" && op != "!=") || exprType(*expr.left) != exprType(*expr.right)) {
+                throw std::runtime_error("strings can only be compared with == and !=, and only with other strings");
+                }
+            genStringCompare(expr);
             return;
         }
         bool isCompare = (op == "<" || op == ">" || op == "<=" || op == ">=" ||
@@ -666,6 +809,165 @@ private:
         body << end << ":\n";
     }
 
+    // ---------- Strings ----------
+    // string s     string s = "hi"     string a, b = "x"     string names[3] = ["a", "b"]
+    void genStringDecl(const VarDecl& decl) {
+        const ArrayInit* list = dynamic_cast<const ArrayInit*>(decl.init.get());
+        if (list) {
+            for (const auto& item : list->items) {
+                if (exprType(*item) != "string") {
+                    throw std::runtime_error("an array of strings can only be started with text");
+                }
+            }
+        } else if (decl.init && exprType(*decl.init) != "string") {
+            throw std::runtime_error("a string can only be started with text or another string");
+        }
+
+        for (const Declname& n : decl.names) {
+            if (n.size.empty()) {
+                // ----- a plain string -----
+                allocate(n.name, "string");
+                const Variable& v = lookup(n.name);
+                if (decl.init) {
+                    genStringCopyAt(v.offset, *decl.init);
+                } else {
+                    body << "    mov byte " << slotOf(v) << ", 0      ; " << n.name << " starts empty\n";
+                }
+                continue;
+            }
+
+            // ----- an array of strings -----
+            int count = std::stoi(n.size);
+            if (count <= 0) {
+                throw std::runtime_error("the array '" + n.name + "' needs a size of at least 1");
+            }
+            allocate(n.name, "string", count);
+            const Variable& arr = lookup(n.name);
+
+            // Every element starts empty: set the first byte of each buffer to 0.
+            // ECX counts down from 'count' to 1; element ECX starts (ECX-1)*256 bytes in.
+            std::string loop = newLabel();
+            body << "    mov ecx, " << count << "              ; start every element of " << n.name << " empty\n";
+            body << loop << ":\n";
+            body << "    mov rax, rcx\n";
+            body << "    sub rax, 1\n";
+            body << "    shl rax, 8               ; times 256, the size of one buffer\n";
+            body << "    mov byte [rbp + rax - " << arr.offset << "], 0\n";
+            body << "    sub ecx, 1\n";
+            body << "    jnz " << loop << "\n";
+
+            if (list) {
+                if (static_cast<int>(list->items.size()) > count) {
+                    throw std::runtime_error("more starting values than the array '" + n.name +
+                                             "' has room for");
+                }
+                for (size_t i = 0; i < list->items.size(); i++) {
+                    genStringCopyAt(elementOffset(arr, static_cast<int>(i) + 1), *list->items[i]);
+                }
+            } else if (decl.init) {
+                // A single value goes in the element named in the brackets.
+                genStringCopyAt(elementOffset(arr, count), *decl.init);
+            }
+        }
+    }
+
+    // Leaves the ADDRESS of a string's characters in RAX. Works for a string literal
+    // ("hello"), a string variable, an element of a string array, and a call that
+    // returns a string.
+    void genStringAddress(const Node& node) {
+        if (auto* s = dynamic_cast<const StringLit*>(&node)) {
+            body << "    lea rax, [rel " << addString(s->value) << "]\n";
+            return;
+        }
+        if (auto* v = dynamic_cast<const NameExpr*>(&node)) {
+            const Variable& var = lookup(v->name);
+            if (var.type == "string") {
+                if (var.count > 0) {
+                    throw std::runtime_error("'" + v->name + "' is an array: use " + v->name + "[index]");
+                }
+                body << "    lea rax, " << slotOf(var) << "      ; the address of " << v->name << "\n";
+                return;
+            }
+        }
+        if (auto* ix = dynamic_cast<const IndexExpr*>(&node)) {
+            genStringElementAddress(ix->name, *ix->index);
+            return;
+        }
+        if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
+            auto it = funcs.find(c->name);
+            if (it != funcs.end() && it->second.returnType == "string") {
+                genCall(*c, true);                  // RAX = the shared 'retbuf'
+                // 'retbuf' is overwritten by the next string-returning call, so copy the
+                // text into a buffer of our own right away. (That is what makes
+                // f("a") == f("b") work: each call gets its own copy.)
+                int buf = newBuffer();
+                body << "    mov rdx, rax\n";
+                body << "    lea rcx, [rbp-" << buf << "]\n";
+                body << "    mov r8d, 255\n";
+                body << "    call strncpy\n";
+                body << "    mov byte [rbp-" << (buf - 255) << "], 0\n";
+                body << "    lea rax, [rbp-" << buf << "]      ; the copy of the returned text\n";
+                return;
+            }
+        }
+        throw std::runtime_error("this kind of string expression is not supported yet");
+    }
+
+    // RAX = the address of element 'index' of an array of strings.
+    // Elements are numbered from 1, and each one is a 256-byte buffer.
+    void genStringElementAddress(const std::string& name, const Node& index) {
+        const Variable& arr = lookup(name);
+        if (arr.count == 0 || arr.type != "string") {
+            throw std::runtime_error("'" + name + "' is not an array of strings");
+        }
+        genExpr(index);                              // EAX = the index
+        body << "    movsxd rax, eax          ; widen the index to 64 bits\n";
+        body << "    sub rax, 1               ; elements are numbered from 1\n";
+        body << "    shl rax, 8               ; times 256, the size of one buffer\n";
+        body << "    lea rax, [rbp + rax - " << arr.offset << "]\n";
+    }
+
+    // Copies a string into the buffer that starts 'destOffset' bytes below RBP.
+    //max characters is 255
+    void genStringCopyAt(int destOffset, const Node& source) {
+        genStringAddress(source);                    // RAX = the characters to copy
+        body << "    mov rdx, rax             ; 2nd argument: where to copy from\n";
+        body << "    lea rcx, [rbp-" << destOffset << "]      ; 1st argument: where to copy to\n";
+        body << "    mov r8d, 255             ; 3rd argument: at most this many characters\n";
+        body << "    call strncpy\n";
+        body << "    mov byte [rbp-" << (destOffset - 255) << "], 0      ; make sure the text is ended\n";
+    }
+
+    // names[i] = source: the same copy, but the destination is worked out while running.
+    void genStringCopyToElement(const std::string& name, const Node& index, const Node& source) {
+        genStringAddress(source);
+        int srcTemp = newTemp();
+        body << "    mov qword [rbp-" << srcTemp << "], rax      ; save where to copy from\n";
+        genStringElementAddress(name, index);        // RAX = the element's buffer
+        int dstTemp = newTemp();
+        body << "    mov qword [rbp-" << dstTemp << "], rax      ; save where to copy to\n";
+        body << "    mov rcx, rax\n";
+        body << "    mov rdx, qword [rbp-" << srcTemp << "]\n";
+        body << "    mov r8d, 255\n";
+        body << "    call strncpy\n";
+        body << "    mov rax, qword [rbp-" << dstTemp << "]\n";
+        body << "    mov byte [rax + 255], 0      ; make sure the text is ended\n";
+    }
+
+    // left == right      left != right      (both are strings)
+    void genStringCompare(const BinaryExpr& expr) {
+        genStringAddress(*expr.left);
+        int temp = newTemp();
+        body << "    mov qword [rbp-" << temp << "], rax      ; save the left string's address\n";
+        genStringAddress(*expr.right);
+        body << "    mov rdx, rax\n";
+        body << "    mov rcx, qword [rbp-" << temp << "]\n";
+        body << "    call strcmp                ; EAX = 0 when the two are equal\n";
+        body << "    cmp eax, 0\n";
+        body << "    " << (expr.op == "==" ? "sete" : "setne") << " al\n";
+        body << "    movzx eax, al\n";
+    }
+
     // ---------- Helpers ----------
 
     // Stores a string in the .data section and returns the name we gave it.
@@ -679,6 +981,11 @@ private:
         }
         data << "0                  ; \"" << printable(value) << "\"\n";   // the 0 ends the string
         return label;
+    }
+
+    int newBuffer() {
+        localBytes += 256;
+        return localBytes;
     }
 
     // A copy of the text that is safe to put inside an assembly comment.
