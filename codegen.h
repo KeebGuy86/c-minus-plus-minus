@@ -416,6 +416,28 @@ private:
         vars = saved;
     }
 
+    //Ternary:
+    //condition ? thenValue : elseValue
+    void genTernary(const TernaryExpr& t, bool asString) {
+        if (exprType(*t.condition) == "string") {
+            throw std::runtime_error("the condition of a ? : must be a number or a comparison, not a string");
+        }
+        std::string elseLabel = newLabel();
+        std::string endLabel = newLabel();
+
+        genExpr(*t.condition);                  // EAX = 1 (true) or 0 (false)
+        body << "    cmp eax, 0\n";
+        body << "    je " << elseLabel << "      ; false: take the 'else' value\n";
+
+        if (asString) genStringAddress(*t.thenValue); else genExpr(*t.thenValue);
+        body << "    jmp " << endLabel << "      ; skip over the 'else' value\n";
+
+        body << elseLabel << ":\n";
+        if (asString) genStringAddress(*t.elseValue); else genExpr(*t.elseValue);
+        body << endLabel << ":\n";
+    }
+
+
     // if (condition) { ... } else { ... }
     // The idea: work out the condition; if it is 0 (false), jump over the 'then' part.
     void genIf(const IfStmt& stmt) {
@@ -630,6 +652,14 @@ private:
         if (dynamic_cast<const CharLit*>(&node))   return "char";
         if (auto* v = dynamic_cast<const NameExpr*>(&node)) return lookup(v->name).type;
         if (auto* ix = dynamic_cast<const IndexExpr*>(&node)) return lookup(ix->name).type;
+        if (auto* t = dynamic_cast<const TernaryExpr*>(&node)) {
+            std::string a = exprType(*t->thenValue);
+            std::string b = exprType(*t->elseValue);
+            if ((a == "string") != (b == "string")) {
+                throw std::runtime_error("both values of a ? : must be strings, or both must be numbers");
+            }
+            return (a == b) ? a : "int";
+        }
         if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
             auto it = funcs.find(c->name);
             if (it != funcs.end() && !it->second.returnType.empty()) return it->second.returnType;
@@ -651,6 +681,13 @@ private:
             // A character is just its code number: '+' is 43, 'a' is 97, and so on.
             body << "    mov eax, " << static_cast<int>(static_cast<unsigned char>(c->value))
                  << "             ; '" << printable(std::string(1, c->value)) << "'\n";
+            return;
+        }
+        if (auto* t = dynamic_cast<const TernaryExpr*>(&node)) {
+            if (exprType(*t) == "string") {
+                throw std::runtime_error("a ? : that gives a string can't be used as a number");
+            }
+            genTernary(*t, false);                  // the chosen value ends up in EAX
             return;
         }
         if (auto* c = dynamic_cast<const CallExpr*>(&node)) {
@@ -909,6 +946,13 @@ private:
                 body << "    lea rax, [rbp-" << buf << "]      ; the copy of the returned text\n";
                 return;
             }
+        }
+        if (auto* t = dynamic_cast<const TernaryExpr*>(&node)) {
+            if (exprType(*t) != "string") {
+                throw std::runtime_error("this ? : gives a number, not a string");
+            }
+            genTernary(*t, true);                   // RAX = the address of the chosen text
+            return;
         }
         throw std::runtime_error("this kind of string expression is not supported yet");
     }

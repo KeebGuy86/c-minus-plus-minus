@@ -1,74 +1,31 @@
-import <io>
-
 func main(){
-    string name = "Saad"
-    string empty
-    string a, b = "same"
-    Type["name is " name], \n
-    Type["empty is [" empty "]"], \n
-    Type[a " " b], \n
-    string copy = name
-    name = "changed"
-    Type[copy " then " name], \n
-    copy <- name
-    Type[copy], \n
-    if (a == b) Type["a equals b"], \n
-    if (name != "Saad") Type["name is not Saad"], \n
-    string pct = "100% sure"
-    Type[pct], \n
-
-    string names[3] = ["ann", "bob"]
-    names[3] = "cat"
-    int i = 1
-    while (i <= 3) {
-        Type[i ": " names[i]], \n
-        i <- i + 1
-    }
-    string labels[2] <- "x"
-    Type["labels: [" labels[1] "] [" labels[2] "]"], \n
-    names[2] = names[1]
-    names[1] = "zed"
+    int a = 7
+    int b = 3
+    string size = a > 5 ? "big" : "small"
+    Type[a " is " size], \n
+    Type["inline: " (b > 5 ? "big" : "small")], \n
+    int grade = 85
+    string letter = grade >= 90 ? "A" : grade >= 80 ? "B" : grade >= 70 ? "C" : "F"
+    Type["grade " grade " is " letter], \n
+    Type[(a == 7 ? 'y' : 'n')], \n
+    if (size == (a > 100 ? "small" : "big")) Type["string compare with ternary"], \n
+    Type[tern(1) " " tern(0)], \n
+    show(a > b ? "a is bigger" : "b is bigger")
+    string names[2] = ["ann", "bob"]
+    names[b == 3 ? 2 : 1] = a > 5 ? "yes" : "no"
     Type[names[1] " " names[2]], \n
-    if (names[2] == "ann") Type["names[2] is ann"], \n
-
-    Type[greeting("World")], \n
-    string g = greeting(name)
-    Type[g], \n
-    string t = "keep"
-    Type[shout(t) " / " t], \n
-    if (greeting("a") == greeting("a")) Type["same greeting"], \n
-    if (greeting("a") != greeting("b")) Type["different greeting"], \n
-    Type["same? " same(name, "changed") " " same(name, "x")], \n
-    show("from a procedure")
-    Type[pick(2) " " pick(3)], \n
-    show(pick(1))
-
-    string line
-    Read[line]
-    Type["you typed: " line], \n
-    Read[names[2]]
-    Type["names[2] now " names[2]], \n
+    int k = 0
+    while (k < 4) {
+        Type[(k % 2 == 0 ? "even " : "odd ")]
+        k <- k + 1
+    }
+    Type[""], \n
 }
 
-func greeting(string who) -> string {
-    if (who == "World") return "Hello, World!"
-    return who
-}
-
-func shout(string s) -> string {
-    s = "changed in callee"
-    return s
-}
-
-func same(string a, string b) -> bool {
-    return a == b
+func tern(int k) -> string {
+    return k == 1 ? "one" : "zero"
 }
 
 func show(string s){
     Type["show: " s], \n
-}
-
-func pick(int k) -> string {
-    string options[3] = ["one", "two", "three"]
-    return options[k]
 }
