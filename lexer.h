@@ -167,6 +167,13 @@ private:
             text += advance();
         }
 
+        if (peek() == '.' && is_digit(peekNext())) {
+            text += advance();
+            while (is_digit(peek())) {
+                text += advance();
+            }
+        }
+
         return Token{TokenKind::Number, text, start_line, start_col};
     }
 
@@ -250,6 +257,10 @@ private:
     // at the end so callers never read past the string
     char peek() const{
         return at_end() ? '\0' : src[pos];
+    }
+
+    char peekNext() const{
+        return (pos + 1 < src.size()) ? src[pos + 1]: '\0';
     }
 
     bool match(char expected){

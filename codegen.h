@@ -62,6 +62,7 @@ public:
         out << "fmt_d  db \"%d\", 0            ; printf format: print an int\n";
         out << "fmt_nl db 10, 0              ; printf format: just a newline (10)\n";
         out << "fmt_c  db \"%c\", 0            ; printf format: print a character\n";
+        out << "fmt_g db \"%g\", 0            ; printf format: print a decimal number\n";
         out << "fmt_in_c db \" %c\", 0         ; scanf format: read a character (the space skips a leftover Enter)\n";
         out << "fmt_in_s db \"%255s\", 0       ; scanf format: read one word of up to 255 characters\n";
         out << data.str();
@@ -77,6 +78,7 @@ private:
     std::ostringstream text;    // the .text section: finished functions
     std::ostringstream body;    // the instructions of the function being generated right now
     int stringCount = 0;        // used to give every string its own name: str0, str1, ...
+    int decimalCount = 0;
     int labelCount = 0;         // used to give every jump target its own name: .L0, .L1, ...
 
     // What we remember about each variable of the current function.
@@ -304,6 +306,10 @@ private:
             genStringDecl(decl);
             return;
         }
+        if (decl.typeName == "deci") {
+            genDeciDecl(decl);
+            return;
+        }
         if (decl.typeName != "int" && decl.typeName != "char" && decl.typeName != "bool") {
             throw std::runtime_error("only int, char and bool variables are supported so far");
         }
@@ -384,6 +390,18 @@ private:
                 genStringCopyAt(v.offset, *stmt.value);
             }
             return;
+        }
+
+        if (v.type == "deci") {
+            if (stmt.index){
+                throw std::runtime_error("arrays of deci are not supported yet");
+            }
+            genDeci(*stmt.value);
+            body << "    movsd qword " << slotOf(v) << ", xmm0      ; " << stmt.name << " = ...\n";
+            return;
+        }
+        if (exprType(*stmt.value) == "deci") {
+            throw std::runtime_error("a decimal can't be stored in the whole-number variable" + stmt.name + "");
         }
 
         if (stmt.index) {
@@ -588,7 +606,18 @@ private:
                 body << "    mov rdx, rax\n";
                 body << "    lea rcx, [rel fmt_s]\n";
                 body << "    call printf\n";
-            } else {
+            }
+
+            else if (exprType(*item) == "deci") {
+                genDeci(*item);
+
+                body << "    movq rdx, xmm0\n";
+                body << "    movsd xmm1, xmm0\n";
+                body << "    lea rcx, [rel fmt_g]\n";
+                body << "    call printf\n";
+            }
+
+            else {
                 // Any other item is a number: compute it into EAX, then
                 // printf("%d", value): RCX = the format, EDX = the number.
                 genExpr(*item);
@@ -664,12 +693,18 @@ private:
             auto it = funcs.find(c->name);
             if (it != funcs.end() && !it->second.returnType.empty()) return it->second.returnType;
         }
+        if (auto* n = dynamic_cast<const NumberLit*>(&node)) {
+            return (n->text.find('.') != std::string::npos) ? "deci" : "int";
+        }
         return "int";           // numbers and math
     }
 
     // Works out the value of an expression and leaves it in EAX.
     void genExpr(const Node& node) {
         if (auto* n = dynamic_cast<const NumberLit*>(&node)) {
+            if (n->text.find('.') != std::string::npos) {
+                throw std::runtime_error("the decimal number " + n->text + " can't be used where a whole number is needed");
+            }
             body << "    mov eax, " << n->text << "\n";
             return;
         }
@@ -1010,6 +1045,54 @@ private:
         body << "    cmp eax, 0\n";
         body << "    " << (expr.op == "==" ? "sete" : "setne") << " al\n";
         body << "    movzx eax, al\n";
+    }
+
+    //------------Decimals ---------
+
+    void genDeci(const Node& node) {
+        if (exprType(node) != "deci"){
+            genExpr(node);
+            body << "    cvtsi2sd xmm0, eax       ; ...converted to a decimal in XMM0\n";
+            return;
+        }
+        if (auto* n = dynamic_cast<const NumberLit*>(&node)){
+            body << "    movsd xmm0, qword [rel " << addDecimal(n->text) << "]      ; " << n->text << "\n";
+            return;
+        }
+        if (auto* v = dynamic_cast<const NameExpr*>(&node)){
+            body << "    movsd xmm0, qword " << slotOf(lookup(v->name)) << "      ; read " << v->name << "\n";
+            return;
+        }
+        throw std::runtime_error("this kind of decimal expression is not supported yet.");
+    }
+
+    void genDeciDecl(const VarDecl& decl){
+        for (const Declname& n : decl.names){
+            if (!n.size.empty()) throw std::runtime_error("arrays of decimals are not supported yet");
+        }
+        if (dynamic_cast<const ArrayInit*>(decl.init.get())){
+            throw std::runtime_error("arrays of deci are not supported yet");
+        }
+
+        if (decl.init){
+            genDeci(*decl.init);
+        }
+
+        for (const Declname& n : decl.names){
+            allocate(n.name, "deci");
+            if (decl.init) {
+                body << "    movsd qword " << slotOf(lookup(n.name)) << ", xmm0      ; " << n.name << "\n";
+            } else {
+                // With no starting value, a decimal starts at 0.0 (all its bits are zero).
+                body << "    mov qword " << slotOf(lookup(n.name)) << ", 0      ; " << n.name << " starts at 0.0\n";
+            }
+        }
+    }
+
+    std::string addDecimal(const std::string& text){
+        std::string label = "dec" + std::to_string(decimalCount++);
+        data << label << " dq " << text << "\n";
+        return label;
     }
 
     // ---------- Helpers ----------
