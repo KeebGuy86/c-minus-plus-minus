@@ -293,6 +293,7 @@ private:
         if (auto* i = dynamic_cast<const IfStmt*>(&node))     { genIf(*i);     return; }
         if (auto* w = dynamic_cast<const WhileLoop*>(&node))  { genWhile(*w);  return; }
         if (auto* f = dynamic_cast<const ForLoop*>(&node))    { genFor(*f);    return; }
+        if (auto* sw = dynamic_cast<const SwitchStmt*>(&node)) {genSwitch(*sw); return; }
         if (dynamic_cast<const BreakStmt*>(&node))            { genBreak();    return; }
         if (dynamic_cast<const ContinueStmt*>(&node))         { genContinue(); return; }
         if (auto* c = dynamic_cast<const CallExpr*>(&node))    { genCall(*c, false); return;}
@@ -455,6 +456,28 @@ private:
         body << endLabel << ":\n";
     }
 
+    void genSwitch(const SwitchStmt& stmt) {
+        std::string type = exprType(*stmt.subject);
+        std::string end = newLabel();           // where the switch finishes
+
+        int subject = newTemp();
+        if (type == "string") {
+            genStringAddress(*stmt.subject);    // RAX = where the text is
+            body << "    mov qword [rbp-" << subject << "], rax      ; where the text being switched on is\n";
+        } else if (type == "deci") {
+            genDeci(*stmt.subject);             // XMM0 = the decimal
+            body << "    movsd qword [rbp-" << subject << "], xmm0      ; the decimal being switched on\n";
+        } else {
+            genExpr(*stmt.subject);             // EAX = the number or character
+            body << "    mov dword [rbp-" << subject << "], eax      ; the value being switched on\n";
+        }
+
+        if (!stmt.cases.empty()) {
+            throw std::runtime_error("case and default are not supported yet");
+        }
+
+        body << end << ":\n";
+    }
 
     // if (condition) { ... } else { ... }
     // The idea: work out the condition; if it is 0 (false), jump over the 'then' part.

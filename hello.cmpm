@@ -1,20 +1,7 @@
+import <io>
+
 func main(){
-    deci d = 3.14
-    deci e = 2.50
-    deci f
-    int n = 7
-    deci g = n
-    deci h = 10
-    Type["d = " d], \n
-    Type["e = " e], \n
-    Type["f = " f], \n
-    Type["g = " g " h = " h], \n
-    f = 0.5
-    f <- d
-    Type["f = " f], \n
-    d = n
-    Type["d = " d], \n
-    deci a, b = 1.25
-    Type[a " " b], \n
-    Type[2.0 " " 0.1 " " 123456.789 " " 1000000.0], \n
+    string lang = "C-+-"
+    Type["Hello, " lang], \n
+    return
 }
